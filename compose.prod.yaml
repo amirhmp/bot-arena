@@ -1,0 +1,78 @@
+# Production: docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+# Caddy is the only service with published ports. The worker is added in Phase 3.
+# Optional build-time proxy for `pnpm install` / Prisma downloads. Set BUILD_HTTP_PROXY,
+# BUILD_HTTPS_PROXY and BUILD_NO_PROXY in .env; leave them empty to download directly.
+x-build-proxy: &build-proxy
+  HTTP_PROXY: ${BUILD_HTTP_PROXY:-}
+  HTTPS_PROXY: ${BUILD_HTTPS_PROXY:-}
+  NO_PROXY: ${BUILD_NO_PROXY:-}
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      SEQ_DOMAIN: ${SEQ_DOMAIN:?set SEQ_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    depends_on: [web, api, seq]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        <<: *build-proxy
+        NEXT_PUBLIC_API_URL: /api
+      # Lets a proxy running on the Docker host be reached as host.docker.internal on Linux too.
+      extra_hosts:
+        - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:4000
+      SEQ_URL: http://seq:5341
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks: [edge, internal]
+    depends_on: [api]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        <<: *build-proxy
+      extra_hosts:
+        - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    environment:
+      API_PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-botarena}:${POSTGRES_PASSWORD:-botarena}@postgres:5432/${POSTGRES_DB:-botarena}
+      SEQ_URL: http://seq:5341
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks: [edge, internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    networks: [internal]
+
+  seq:
+    # Ingestion (5341) stays on the internal network. The UI is reached through Caddy on its own subdomain.
+    networks: [edge, internal]
+
+volumes:
+  caddy-data:
+  caddy-config:

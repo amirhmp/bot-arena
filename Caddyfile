@@ -1,0 +1,17 @@
+# One domain: "/" goes to the web app and "/api" to Hono, so cookies work without CORS.
+{$DOMAIN} {
+	handle_path /api/* {
+		reverse_proxy api:4000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# Seq UI on its own subdomain, protected by Seq's own login.
+# Log-ingestion paths are refused so nothing can write logs from outside.
+{$SEQ_DOMAIN} {
+	@ingest path /api/events/* /ingest/*
+	respond @ingest 403
+	reverse_proxy seq:80
+}

@@ -1,0 +1,13 @@
+# Development overrides: docker compose -f compose.yaml -f compose.dev.yaml up -d
+# Web and API run on the host with hot reload (`pnpm dev`). There is no Caddy here.
+# The privileged Linux worker container is added in Phase 3.
+services:
+  postgres:
+    ports:
+      - '127.0.0.1:5432:5432'
+
+  seq:
+    ports:
+      # Host ports come from .env (SEQ_INGESTION_PORT, SEQ_UI_PORT); container ports are fixed.
+      - '127.0.0.1:${SEQ_INGESTION_PORT:-5341}:5341' # ingestion
+      - '127.0.0.1:${SEQ_UI_PORT:-8087}:80' # UI

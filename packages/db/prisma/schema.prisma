@@ -1,0 +1,11 @@
+// Prisma 7: the connection URL lives in prisma.config.ts, not here.
+// Models are added phase by phase. Phase 1 introduces User.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}

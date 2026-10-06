@@ -20,7 +20,8 @@
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "changelog": "git-cliff --output CHANGELOG.md",
     "release": "tsx scripts/release.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "zip": "bun scripts/zip.js"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
@@ -36,6 +37,7 @@
     "@commitlint/config-conventional": "21.2.3",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.4",
+    "archiver": "^8.0.0",
     "eslint": "10.12.0",
     "eslint-config-prettier": "10.1.8",
     "git-cliff": "2.14.2",

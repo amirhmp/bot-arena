@@ -1,7 +1,10 @@
 import { createPrismaClient, pingDatabase } from '@bot-arena/db'
 import { createLogger, resolveSeqUrl } from '@bot-arena/logger'
 import { serve } from '@hono/node-server'
+import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { createApp } from './app'
+import { createAuth } from './auth'
+import { ensureInitialAdmin } from './bootstrap'
 import { loadEnv } from './env'
 
 const env = loadEnv()
@@ -16,8 +19,28 @@ const logger = createLogger({
 
 const prisma = createPrismaClient(env.DATABASE_URL)
 
+const trustedOrigins = [env.WEB_ORIGIN, env.BETTER_AUTH_URL]
+const auth = createAuth({
+  database: prismaAdapter(prisma, { provider: 'postgresql' }),
+  secret: env.BETTER_AUTH_SECRET,
+  baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins,
+  logger,
+})
+
+if (env.ADMIN_PASSWORD) {
+  await ensureInitialAdmin(
+    auth,
+    { username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD },
+    logger,
+  )
+} else {
+  logger.warn('ADMIN_PASSWORD is not set; no initial admin will be created')
+}
+
 const app = createApp({
   logger,
+  auth,
   status: { pingDatabase: () => pingDatabase(prisma), seqUrl },
   corsOrigin: env.NODE_ENV === 'production' ? undefined : env.WEB_ORIGIN,
 })

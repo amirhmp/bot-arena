@@ -9,12 +9,15 @@ pnpm install                      # also installs the Husky git hooks
 cp .env.example .env              # then adjust values
 docker compose -f compose.yaml -f compose.dev.yaml up -d   # Postgres and Seq
 pnpm db:generate                  # generate the Prisma client
+pnpm db:migrate                   # create the tables
 pnpm dev                          # web on :3000, API on :4000
 ```
 
+Sign in at http://localhost:3000 with `ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env`. The API creates that first admin on startup when no admin exists; after that, admins create every other account in the Users page (there is no self-registration).
+
 - Seq UI: http://localhost:8087 by default (user `admin`, password `SEQ_ADMIN_PASSWORD` from `.env`).
 - Seq host ports are set only in `.env` (`SEQ_INGESTION_PORT`, `SEQ_UI_PORT`). If a port is already taken, change it there and re-run `docker compose ... up -d`; the API and web server pick up the new ingestion port automatically after a restart.
-- System status page: http://localhost:3000/status (open without login in development only).
+- System status page: http://localhost:3000/admin/status (admins only).
 - Services send logs to Seq without API keys: the ingestion port is reachable only from the internal Docker network (and from localhost in development). Filter by the `service` field in Seq.
 
 Seq only applies `SEQ_ADMIN_PASSWORD` on its first run. To change it later, remove the `seq-data` volume.
@@ -64,7 +67,15 @@ A commit with a bad message or unformatted code is blocked. Do not bypass the ho
 
 - The schema is `packages/db/prisma/schema.prisma`; the connection URL and migration path live in `packages/db/prisma.config.ts`, which reads `DATABASE_URL` from the root `.env`.
 - The client is generated into `packages/db/src/generated` (git-ignored) and used through a `@prisma/adapter-pg` driver adapter. Run `pnpm db:generate` after pulling schema changes.
-- Create a migration with `pnpm db:migrate`.
+- Create a migration with `pnpm db:migrate`. The production API container runs `prisma migrate deploy` before it starts.
+- The auth tables (`User`, `Session`, `Account`, `Verification`) follow Better Auth's schema plus its username and admin plugins. When upgrading `better-auth`, compare the fields (`getAuthTables` in `better-auth/db`) with `schema.prisma` and add a migration if they changed.
+
+## Authentication and roles
+
+- Better Auth is mounted by the API at `/auth/*` (username and password; self-registration is disabled). Roles are `admin` and `player`; deactivating a user bans them, which also ends their sessions.
+- Every API route is behind a guard in `apps/api/src/app.ts` (`requireAuth`, `requireRole('admin')`). Add new routes there, never leave one unguarded by accident.
+- The web app checks the session on the server (`apps/web/src/lib/session.ts`) in the `(app)` and `admin` layouts; the API stays the only place that validates sessions.
+- Browser errors reach Seq through `POST /client-logs` (see decision 37 in `PROJECT_SCOPE.md`). Use `logClient` from `apps/web/src/lib/client-logger.ts`; never call Seq from the browser.
 
 ## Running tests
 

@@ -51,6 +51,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /repo/apps/web/.next/standalone ./
 COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
+# The changelog page reads CHANGELOG.md from the working directory.
+COPY --from=build /repo/CHANGELOG.md ./CHANGELOG.md
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 CMD ["node", "apps/web/server.js"]

@@ -23,7 +23,8 @@ export function requestId(rootLogger: Logger) {
     const started = performance.now()
     await next()
 
-    logger.info(
+    // Read the logger back from the context: auth middleware may have bound a userId to it.
+    c.get('logger').info(
       {
         method: c.req.method,
         path: c.req.path,

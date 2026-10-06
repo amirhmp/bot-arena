@@ -61,6 +61,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-botarena}:${POSTGRES_PASSWORD:-botarena}@postgres:5432/${POSTGRES_DB:-botarena}
       SEQ_URL: http://seq:5341
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      WEB_ORIGIN: https://${DOMAIN}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
     networks: [edge, internal]
     depends_on:
       postgres:

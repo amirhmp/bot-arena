@@ -24,6 +24,8 @@ export type CreateLoggerOptions = {
   level?: string
   /** Seq ingestion URL. When missing, logs only go to stdout. */
   seqUrl?: string
+  /** Where the plain log lines go. Defaults to stdout; tests pass a stream to capture events. */
+  stream?: NodeJS.WritableStream
 }
 
 /**
@@ -34,7 +36,9 @@ export function createLogger(options: CreateLoggerOptions): Logger {
   const level = options.level ?? 'info'
   // Pino's multistream entries want its Level union; the env value is validated by pino itself.
   const entryLevel = level as pino.Level
-  const streams: pino.StreamEntry[] = [{ level: entryLevel, stream: process.stdout }]
+  const streams: pino.StreamEntry[] = [
+    { level: entryLevel, stream: options.stream ?? process.stdout },
+  ]
 
   if (options.seqUrl) {
     streams.push({

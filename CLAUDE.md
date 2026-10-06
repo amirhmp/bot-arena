@@ -16,21 +16,24 @@ Also update the "Current state" section when a phase from `PROJECT_SCOPE.md` sec
 
 ## Current state
 
-- **Phase 0 (Foundation) is implemented.** Next up: Phase 1 (users and roles). Follow the delivery order in `PROJECT_SCOPE.md`; do not skip ahead.
-- Not built yet: auth, users, worker, queue, sandbox, engine, games, viewer, judge. Their directories do not exist yet.
-- Prisma schema has no models yet; Phase 1 adds `User`.
-- The status route is open without login (development). Phase 1 moves it behind the admin role.
+- **Phase 0 (Foundation) and Phase 1 (Users and roles) are implemented.** Next up: Phase 2 (question bank). Follow the delivery order in `PROJECT_SCOPE.md`; do not skip ahead.
+- Not built yet: worker, queue, sandbox, engine, games, viewer, judge, questions, quizzes. Their directories do not exist yet.
+- Prisma schema has the Better Auth tables (`User`, `Session`, `Account`, `Verification`). The migration `20261006000000_users_and_auth` was written by hand (no database was available to run `prisma migrate dev`); if `pnpm db:migrate` reports drift against `schema.prisma`, regenerate it.
+- Auth: Better Auth in the API (username plugin + admin plugin). The first admin is created on API startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD` when no admin exists. The status route is admin-only (`/admin/status` in the web app).
 
 ## Layout
 
 ```
 apps/
-  api/        Hono API. src/app.ts exports createApp() and AppType; src/index.ts starts the server
-  web/        Next.js App Router UI (Tailwind 4, TanStack Query). UI only
+  api/        Hono API. src/app.ts exports createApp() and AppType; src/index.ts starts the server.
+              auth.ts (Better Auth factory), bootstrap.ts (first admin), middleware/ (request id,
+              auth guards, rate limit), routes/ (status, me, users, client-logs)
+  web/        Next.js App Router UI (Tailwind 4, TanStack Query). UI only. Route group (app) holds
+              every signed-in page (shell, guards); /login is public
 packages/
-  db/         Prisma 7 schema, prisma.config.ts, client factory (createPrismaClient, pingDatabase)
+  db/         Prisma 7 schema and migrations, prisma.config.ts, client factory (createPrismaClient, pingDatabase)
   logger/     createLogger() (Pino + Seq stream, CLEF over HTTP)
-  shared/     Zod schemas and constants shared by api and web (status schema, REQUEST_ID_HEADER)
+  shared/     Zod schemas and constants shared by api and web (status, users and roles, client log limits, REQUEST_ID_HEADER)
 compose.yaml / compose.dev.yaml / compose.prod.yaml, Caddyfile, .env.example
 ```
 
@@ -38,7 +41,7 @@ Workspace packages are consumed as TypeScript source (`exports` points at `src/i
 
 ## Stack and versions
 
-pnpm 10 workspaces, Turborepo, Node 22, TypeScript 6.x (pinned below 7 because typescript-eslint does not support 7 yet; revisit when it does), ESLint 10 flat config, Prettier, Vitest, Hono + `hc<AppType>`, Zod 4, Next.js 16, React 19, Tailwind 4, TanStack Query, Pino 10, PostgreSQL 17, Seq.
+pnpm 10 workspaces, Turborepo, Node 22, TypeScript 6.x (pinned below 7 because typescript-eslint does not support 7 yet; revisit when it does), ESLint 10 flat config, Prettier, Vitest, Hono + `hc<AppType>` + `@hono/zod-validator`, Better Auth 1.7, Zod 4, Next.js 16, React 19, Tailwind 4, TanStack Query, Pino 10, PostgreSQL 17, Seq.
 
 ## Commands
 
@@ -64,8 +67,10 @@ Turbo tasks `build`, `typecheck`, `lint`, `test` and `dev` depend on `generate`,
 - **Logging:** services log only through `@bot-arena/logger`; `no-console` is an ESLint error (allowed only in config files, `scripts/` and plain `.js`/`.mjs`/`.cjs` tooling files; services are TypeScript). Child loggers carry `requestId`, and later `userId`, `matchId`, `quizId`.
 - **API:** routes are chained on the Hono app so types flow into `AppType`. Request validation uses Zod validators. Every request gets an `x-request-id` (reused if well-formed) and a bound `logger` in context (`c.get('logger')`). Dependencies such as the DB ping are injected into `createApp()` so routes are testable without a database.
 - **Web typecheck:** `apps/web/next-env.d.ts` is generated and git-ignored; the web `typecheck` script runs `next typegen` first so a fresh clone or CI has the Next types.
-- **Web:** business logic stays in the API. Browser calls go through `createApiClient()` in `apps/web/src/lib/api.ts`; server code uses `API_URL`, the browser uses `NEXT_PUBLIC_API_URL` (`/api` in production). Server-side logging uses `apps/web/src/lib/logger.ts` (`server-only`).
-- **Env:** one root `.env` (copy of `.env.example`). The API loads it via `tsx --env-file-if-exists`; Prisma loads it in `prisma.config.ts` with dotenv; Next.js loads it in `next.config.ts` with `process.loadEnvFile` (Next itself only reads `apps/web/.env`). When adding a variable, update `.env.example`, `apps/api/src/env.ts` (Zod) and the Compose files if needed.
+- **Auth and access control:** every route is guarded in one place, `createApp()` in `apps/api/src/app.ts` (`requireAuth`, then `requireRole('admin')` for admin routes). Routes read the user with `c.get('user')`; after `requireAuth` the context logger carries `userId`. Roles are `admin` and `player` (`ROLES` in `@bot-arena/shared`). Accounts have no real email: Better Auth gets a synthetic `<username>@users.invalid`. Deactivation is a Better Auth ban. Tests use Better Auth's memory adapter through `src/test-utils.ts` (`makeTestApp`), so no database is needed.
+- **Client logs:** the browser logs only through `POST /client-logs` (authenticated, strict Zod schema from `@bot-arena/shared`, 64 KB body cap, 30 requests per user per minute, identity added server-side). The web side is `apps/web/src/lib/client-logger.ts` (window errors, unhandled rejections) plus the error boundaries `app/error.tsx` and `app/global-error.tsx`.
+- **Web:** business logic stays in the API. The server checks the session with `getSessionUser()` (`apps/web/src/lib/session.ts`, forwards the cookie to `/me`); sign-in, sign-out and password change use the Better Auth client in `lib/auth-client.ts`. Browser calls go through `createApiClient()` in `apps/web/src/lib/api.ts`; server code uses `API_URL`, the browser uses `NEXT_PUBLIC_API_URL` (`/api` in production). Server-side logging uses `apps/web/src/lib/logger.ts` (`server-only`).
+- **Env:** one root `.env` (copy of `.env.example`). The API loads it via `tsx --env-file-if-exists`; Prisma loads it in `prisma.config.ts` with dotenv; Next.js loads it in `next.config.ts` with `process.loadEnvFile` (Next itself only reads `apps/web/.env`). Auth variables: `BETTER_AUTH_SECRET` (32+ chars), `BETTER_AUTH_URL` (API origin, no path), `ADMIN_USERNAME`, `ADMIN_PASSWORD`. When adding a variable, update `.env.example`, `apps/api/src/env.ts` (Zod) and the Compose files if needed.
 - **Versioning:** one fixed product version across the root, `apps/api` and `apps/web` `package.json`; `packages/*` stay `0.0.0`. Change it only through `pnpm release`, never by hand. Only `vMAJOR.MINOR.PATCH` tags are releases (`tag_pattern` in `cliff.toml` and `SEMVER_TAG_RE` in `scripts/release.ts` must stay in sync). If a new app is added, add its `package.json` to `VERSIONED_PACKAGES` in `scripts/release.ts`. The root `package.json` is `"type": "module"` so `scripts/*.ts` run as ESM under `tsx`.
 - **Dependencies:** do not add anything outside the stack in `PROJECT_SCOPE.md` section 2 without a written reason in the PR.
 
@@ -83,6 +88,7 @@ Turbo tasks `build`, `typecheck`, `lint`, `test` and `dev` depend on `generate`,
 - **Prod:** `compose.prod.yaml` adds Caddy, web and api on two networks: `edge` (Caddy, web, api, Seq UI) and `internal` (Postgres, Seq ingestion, and later the worker). Only Caddy publishes ports. Caddy serves `/` -> web and `/api` -> Hono on one domain (no CORS) and Seq's UI on its own subdomain, refusing ingestion paths.
 - **Logging:** services send CLEF events to Seq's ingestion endpoint over the internal network without API keys (the ingestion port is never reachable from outside; do not add keys back without updating this file and decision 36). Seq's admin password comes from `SEQ_ADMIN_PASSWORD` and only applies on Seq's first run.
 - **Docker builds:** build context is the repo root. Dockerfiles start with `# syntax=docker/dockerfile:1`, copy the lockfile and every workspace member's `package.json` first (so the install layer is only invalidated by manifest changes; **add a new package's `package.json` to both Dockerfiles**), run `pnpm install` with `--mount=type=cache,id=pnpm-store,target=/pnpm/store --store-dir /pnpm/store` (a `pnpm release` bumps versions in `package.json`, and the cache makes that reinstall a re-link, not a download), then `COPY . .` and `prisma generate` (with a placeholder `DATABASE_URL`). Optional build-time proxy: `BUILD_HTTP_PROXY` / `BUILD_HTTPS_PROXY` / `BUILD_NO_PROXY` in `.env` -> compose build args (`x-build-proxy` anchor in `compose.prod.yaml`) -> `ARG HTTP_PROXY/HTTPS_PROXY/NO_PROXY` (default empty) in the Dockerfiles; empty ones are unset in the `RUN` so no proxy means a direct download. Put any new network-using build step behind the same guard. `.dockerignore` keeps `.env`, `node_modules`, `.git` and most `*.md` out of the context (it must keep excluding `node_modules`, or `COPY . .` would overwrite the installed ones); update it when adding top-level files that must be in the image.
+- **Migrations:** the API image runs `prisma migrate deploy` before starting (`apps/api/Dockerfile`).
 - **CI:** `.github/workflows/ci.yml` runs commitlint (PRs), format check, lint, typecheck, test and build.
 
 ## Rules from the project scope (summary)

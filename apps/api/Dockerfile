@@ -43,4 +43,5 @@ RUN [ -n "$HTTP_PROXY" ] || unset HTTP_PROXY; \
 
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["pnpm", "--filter", "@bot-arena/api", "start"]
+# Apply pending migrations, then start. Both need DATABASE_URL from the Compose environment.
+CMD ["sh", "-c", "pnpm --filter @bot-arena/db migrate:deploy && pnpm --filter @bot-arena/api start"]

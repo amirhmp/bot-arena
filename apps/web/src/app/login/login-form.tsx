@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
-import { Button, ErrorText, Field, TextInput } from '@/components/ui'
+import { FormError, TextField } from '@/components/form-parts'
+import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 
 export function LoginForm({ next }: { next: string }) {
@@ -20,7 +21,7 @@ export function LoginForm({ next }: { next: string }) {
       password: String(form.get('password') ?? ''),
     })
     if (error) {
-      setError(error.message ?? 'Could not sign in')
+      setError(error.message ?? 'Could not sign in. Check your username and password.')
       setPending(false)
       return
     }
@@ -29,15 +30,25 @@ export function LoginForm({ next }: { next: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 space-y-4">
-      <Field label="Username">
-        <TextInput name="username" autoComplete="username" autoFocus required />
-      </Field>
-      <Field label="Password">
-        <TextInput name="password" type="password" autoComplete="current-password" required />
-      </Field>
-      <ErrorText>{error}</ErrorText>
-      <Button type="submit" disabled={pending} className="w-full">
+    <form onSubmit={onSubmit} className="mt-8 grid gap-5">
+      <TextField
+        label="Username"
+        name="username"
+        autoComplete="username"
+        autoCapitalize="none"
+        spellCheck={false}
+        autoFocus
+        required
+      />
+      <TextField
+        label="Password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        required
+      />
+      <FormError>{error}</FormError>
+      <Button type="submit" size="lg" loading={pending}>
         {pending ? 'Signing in…' : 'Sign in'}
       </Button>
     </form>

@@ -1,10 +1,12 @@
 import type { SessionUser } from '@bot-arena/shared'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { BrandMark } from './brand-mark'
 import { ClientLogger } from './client-logger'
-import { SignOutButton } from './sign-out-button'
+import { MainNav, type NavItem } from './main-nav'
+import { UserMenu } from './user-menu'
 
-const NAV: { href: string; label: string; adminOnly?: boolean }[] = [
+const NAV: (NavItem & { adminOnly?: boolean })[] = [
   { href: '/', label: 'Home' },
   { href: '/admin/users', label: 'Users', adminOnly: true },
   { href: '/admin/status', label: 'Status', adminOnly: true },
@@ -12,37 +14,35 @@ const NAV: { href: string; label: string; adminOnly?: boolean }[] = [
 ]
 
 export function AppShell({ user, children }: { user: SessionUser; children: ReactNode }) {
+  const items = NAV.filter((item) => !item.adminOnly || user.role === 'admin').map(
+    ({ href, label }) => ({ href, label }),
+  )
   return (
     <div className="min-h-screen">
       <ClientLogger />
-      <header className="border-b border-neutral-300 dark:border-neutral-800">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 p-3">
-          <nav aria-label="Main" className="flex items-center gap-4 text-sm">
-            <Link href="/" className="font-semibold">
-              Bot Arena
-            </Link>
-            {NAV.filter((item) => !item.adminOnly || user.role === 'admin').map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-neutral-600 hover:underline dark:text-neutral-300"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/account" className="hover:underline">
-              {user.name}
-            </Link>
-            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs dark:bg-neutral-800">
-              {user.role}
-            </span>
-            <SignOutButton />
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:inset-s-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
+      <header className="border-b bg-card">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 px-4">
+          <Link href="/" className="flex h-12 items-center gap-2 text-lg font-bold">
+            <BrandMark className="text-primary" />
+            Bot Arena
+          </Link>
+          <div className="order-2 sm:order-3">
+            <UserMenu user={user} />
+          </div>
+          <div className="order-3 w-full sm:order-2 sm:w-auto sm:flex-1">
+            <MainNav items={items} />
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl p-6">{children}</main>
+      <main id="main" className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        {children}
+      </main>
     </div>
   )
 }

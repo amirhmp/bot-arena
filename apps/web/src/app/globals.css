@@ -1,19 +1,139 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens. Names follow shadcn/ui so components added with the CLI pick them up.
+ * Direction: tournament field. Chalk-white paper, deep pitch green as the one brand color,
+ * and a whistle-yellow signal used only for "you are here" and highlights, never for text.
+ * Change the look here, not in components.
+ */
 :root {
-  --background: #fafafa;
-  --foreground: #171717;
+  --radius: 0.5rem;
+
+  --background: #f2f5f4;
+  --foreground: #10231e;
+  --card: #ffffff;
+  --card-foreground: #10231e;
+  --popover: #ffffff;
+  --popover-foreground: #10231e;
+  --primary: #0a6b57;
+  --primary-foreground: #f2f5f4;
+  --secondary: #e3eae7;
+  --secondary-foreground: #10231e;
+  --muted: #e8eeec;
+  --muted-foreground: #52645e;
+  --accent: #dce8e3;
+  --accent-foreground: #10231e;
+  --destructive: #b42334;
+  --destructive-foreground: #ffffff;
+  --success: #17703a;
+  --signal: #e9a100;
+  --border: #cbd6d2;
+  --input: #b7c4bf;
+  --ring: #0a6b57;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.dark {
+  --background: #0b1815;
+  --foreground: #e4eeea;
+  --card: #11231f;
+  --card-foreground: #e4eeea;
+  --popover: #11231f;
+  --popover-foreground: #e4eeea;
+  --primary: #4fd1ae;
+  --primary-foreground: #06201a;
+  --secondary: #1b312b;
+  --secondary-foreground: #e4eeea;
+  --muted: #172a25;
+  --muted-foreground: #96aba4;
+  --accent: #1e352e;
+  --accent-foreground: #e4eeea;
+  --destructive: #e5545f;
+  --destructive-foreground: #1c0709;
+  --success: #5fd391;
+  --signal: #f2b632;
+  --border: #243a33;
+  --input: #2f4a41;
+  --ring: #4fd1ae;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-signal: var(--signal);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Archivo for Latin text; Vazirmatn picks up Persian/Arabic glyphs the first font lacks. */
+  --font-sans: 'Archivo Variable', 'Vazirmatn Variable', system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Archivo has a width axis: headings sit slightly wider and heavier than body text. */
+  h1,
+  h2,
+  h3 {
+    font-stretch: 112%;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /* Letter spacing breaks the joined letters of Persian and Arabic. */
+  :lang(fa) h1,
+  :lang(fa) h2,
+  :lang(fa) h3,
+  [dir='rtl'] h1,
+  [dir='rtl'] h2,
+  [dir='rtl'] h3 {
+    letter-spacing: 0;
+  }
+
+  /* Numbers line up in tables and status rows. */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

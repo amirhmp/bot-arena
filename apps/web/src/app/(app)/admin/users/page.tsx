@@ -1,13 +1,19 @@
+import type { Metadata } from 'next'
+import { PageHeader } from '@/components/page-header'
+import { getSessionUser } from '@/lib/session'
 import { UsersView } from './users-view'
 
-export default function UsersPage() {
+export const metadata: Metadata = { title: 'Users' }
+
+export default async function UsersPage() {
+  const user = await getSessionUser()
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Users</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        Create accounts, set initial passwords and assign roles. There is no self-registration.
-      </p>
-      <UsersView />
+    <div className="grid grid-cols-1 gap-6">
+      <PageHeader
+        title="Users"
+        description="Create accounts, set initial passwords and assign roles. Players cannot sign themselves up."
+      />
+      <UsersView currentUserId={user?.id ?? ''} />
     </div>
   )
 }

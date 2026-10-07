@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Button } from '@/components/ui/button'
 import { logBoundaryError } from '@/lib/client-logger'
 
 /** Shared body for error boundaries: reports the error to Seq and offers a retry. */
@@ -16,16 +17,15 @@ export function ErrorFallback({
   }, [error])
 
   return (
-    <div role="alert" className="mx-auto max-w-md p-8 text-center">
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
-      <p className="mt-2 text-sm text-neutral-500">The error was reported. You can try again.</p>
-      <button
-        type="button"
-        onClick={reset}
-        className="mt-4 rounded bg-neutral-900 px-3 py-1.5 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900"
-      >
+    <div role="alert" className="mx-auto max-w-md p-8 pt-24">
+      <h1 className="text-2xl">Something went wrong</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This page failed to load. The error was reported. Try again, and if it keeps happening, tell
+        an admin.
+      </p>
+      <Button className="mt-5" onClick={reset}>
         Try again
-      </button>
+      </Button>
     </div>
   )
 }

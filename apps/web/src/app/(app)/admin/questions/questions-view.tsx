@@ -3,6 +3,7 @@
 import { DIFFICULTIES, type Difficulty, type QuestionSummary } from '@bot-arena/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useFormatter, useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -35,8 +36,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { createApiClient, readApiError } from '@/lib/api'
+import { useErrorMessage } from '@/lib/use-error-message'
 import { ensureOk, QUESTIONS_KEY } from './api'
-import { DIFFICULTY_OPTIONS, DifficultyBadge } from './difficulty-badge'
+import { DifficultyBadge, useDifficultyOptions } from './difficulty-badge'
 
 type Filters = { q: string; tag: string; difficulty: 'all' | Difficulty }
 
@@ -58,11 +60,16 @@ async function fetchQuestions(filters: Filters): Promise<QuestionSummary[]> {
       ...(filters.difficulty !== 'all' ? { difficulty: filters.difficulty } : {}),
     },
   })
-  if (!res.ok) throw new Error(await readApiError(res))
+  if (!res.ok) throw await readApiError(res)
   return (await res.json()).questions
 }
 
 export function QuestionsView() {
+  const t = useTranslations('Questions')
+  const tCommon = useTranslations('Common')
+  const format = useFormatter()
+  const errorMessage = useErrorMessage()
+  const difficultyOptions = useDifficultyOptions()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<Filters>({ q: '', tag: '', difficulty: 'all' })
   const [deleting, setDeleting] = useState<QuestionSummary | null>(null)
@@ -82,24 +89,24 @@ export function QuestionsView() {
     },
     onSuccess: (_result, question) => {
       setDeleting(null)
-      toast.success('Question deleted', { description: question.title })
+      toast.success(t('deleted'), { description: question.title })
       return queryClient.invalidateQueries({ queryKey: QUESTIONS_KEY })
     },
-    onError: (e) => toast.error('Could not delete the question', { description: e.message }),
+    onError: (e) => toast.error(t('deleteFailed'), { description: errorMessage(e) }),
   })
 
   const filterBar = (
     <div className="flex flex-wrap gap-2">
       <Input
-        aria-label="Search by title"
-        placeholder="Search title"
+        aria-label={t('searchLabel')}
+        placeholder={t('searchPlaceholder')}
         value={filters.q}
         onChange={(e) => setFilters({ ...filters, q: e.target.value })}
         className="w-full sm:w-56"
       />
       <Input
-        aria-label="Filter by tag"
-        placeholder="Tag"
+        aria-label={t('tagLabel')}
+        placeholder={t('tagPlaceholder')}
         autoCapitalize="none"
         spellCheck={false}
         value={filters.tag}
@@ -112,14 +119,14 @@ export function QuestionsView() {
           setFilters({ ...filters, difficulty: value as Filters['difficulty'] })
         }
       >
-        <SelectTrigger aria-label="Filter by difficulty" className="w-full sm:w-44">
+        <SelectTrigger aria-label={t('difficultyLabel')} className="w-full sm:w-44">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Any difficulty</SelectItem>
+          <SelectItem value="all">{t('anyDifficulty')}</SelectItem>
           {DIFFICULTIES.map((value) => (
             <SelectItem key={value} value={value}>
-              {DIFFICULTY_OPTIONS.find((option) => option.value === value)?.label}
+              {difficultyOptions.find((option) => option.value === value)?.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -132,9 +139,9 @@ export function QuestionsView() {
   if (error) {
     return (
       <div className="grid justify-items-start gap-3">
-        <FormError>Could not load questions: {error.message}</FormError>
+        <FormError>{t('loadFailed', { detail: errorMessage(error) })}</FormError>
         <Button variant="outline" onClick={() => refetch()} loading={isFetching}>
-          Try again
+          {tCommon('tryAgain')}
         </Button>
       </div>
     )
@@ -146,17 +153,15 @@ export function QuestionsView() {
 
       {data.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8">
-          <h2 className="text-lg">{filtered ? 'No question matches' : 'No questions yet'}</h2>
+          <h2 className="text-lg">{filtered ? t('noMatchTitle') : t('emptyTitle')}</h2>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            {filtered
-              ? 'Try a different title, tag or difficulty, or clear the filters.'
-              : 'Create the first question, then add sample and hidden tests to it.'}
+            {filtered ? t('noMatchText') : t('emptyText')}
           </p>
           {filtered ? null : (
             <Button asChild className="mt-4">
               <Link href="/admin/questions/new">
                 <Plus aria-hidden />
-                New question
+                {t('newQuestion')}
               </Link>
             </Button>
           )}
@@ -164,20 +169,20 @@ export function QuestionsView() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground" data-numeric>
-            {data.length === 1 ? '1 question' : `${data.length} questions`}
+            {t('count', { count: data.length })}
           </p>
           <div className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Title</TableHead>
-                  <TableHead>Difficulty</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead>Tests</TableHead>
-                  <TableHead>Max score</TableHead>
-                  <TableHead>Updated</TableHead>
+                  <TableHead>{t('colTitle')}</TableHead>
+                  <TableHead>{t('colDifficulty')}</TableHead>
+                  <TableHead>{t('colTags')}</TableHead>
+                  <TableHead>{t('colTests')}</TableHead>
+                  <TableHead>{t('colMaxScore')}</TableHead>
+                  <TableHead>{t('colUpdated')}</TableHead>
                   <TableHead className="w-12">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{tCommon('actions')}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -198,7 +203,7 @@ export function QuestionsView() {
                     <TableCell>
                       <span className="flex gap-1">
                         {question.tags.length === 0 ? (
-                          <span className="text-muted-foreground">None</span>
+                          <span className="text-muted-foreground">{tCommon('none')}</span>
                         ) : (
                           question.tags.map((tag) => (
                             <Badge key={tag} variant="outline">
@@ -209,11 +214,14 @@ export function QuestionsView() {
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {question.sampleCount} sample, {question.hiddenCount} hidden
+                      {t('testCounts', {
+                        samples: question.sampleCount,
+                        hidden: question.hiddenCount,
+                      })}
                     </TableCell>
-                    <TableCell>{question.maxScore}</TableCell>
+                    <TableCell>{format.number(question.maxScore)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(question.updatedAt).toLocaleDateString()}
+                      {format.dateTime(new Date(question.updatedAt), { dateStyle: 'medium' })}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -222,7 +230,7 @@ export function QuestionsView() {
                             variant="ghost"
                             size="icon"
                             className="size-8"
-                            aria-label={`Actions for ${question.title}`}
+                            aria-label={t('actionsFor', { title: question.title })}
                           >
                             <MoreHorizontal aria-hidden />
                           </Button>
@@ -231,13 +239,13 @@ export function QuestionsView() {
                           <DropdownMenuItem asChild>
                             <Link href={`/admin/questions/${question.id}`}>
                               <Pencil aria-hidden />
-                              Edit
+                              {tCommon('edit')}
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link href={`/admin/questions/${question.id}/preview`}>
                               <Eye aria-hidden />
-                              Student preview
+                              {tCommon('studentPreview')}
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -246,7 +254,7 @@ export function QuestionsView() {
                             onSelect={() => setDeleting(question)}
                           >
                             <Trash2 aria-hidden />
-                            Delete
+                            {tCommon('delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -264,11 +272,11 @@ export function QuestionsView() {
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        title={`Delete ${deleting?.title ?? 'this question'}?`}
-        description={`This permanently deletes the question and its ${
-          deleting ? deleting.sampleCount + deleting.hiddenCount : 0
-        } tests. It cannot be undone.`}
-        confirmLabel="Delete question"
+        title={deleting ? t('deleteTitle', { title: deleting.title }) : t('deleteTitleFallback')}
+        description={t('deleteDescription', {
+          count: deleting ? deleting.sampleCount + deleting.hiddenCount : 0,
+        })}
+        confirmLabel={t('deleteConfirm')}
         destructive
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting)}
@@ -278,8 +286,9 @@ export function QuestionsView() {
 }
 
 function QuestionsSkeleton() {
+  const t = useTranslations('Questions')
   return (
-    <div className="grid gap-3" role="status" aria-label="Loading questions">
+    <div className="grid gap-3" role="status" aria-label={t('loading')}>
       <div className="flex gap-2">
         <Skeleton className="h-9 w-56" />
         <Skeleton className="h-9 w-36" />

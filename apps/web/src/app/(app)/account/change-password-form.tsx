@@ -1,6 +1,7 @@
 'use client'
 
 import { PASSWORD_MIN_LENGTH } from '@bot-arena/shared'
+import { useTranslations } from 'next-intl'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { FormError, TextField } from '@/components/form-parts'
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 
 export function ChangePasswordForm() {
+  const t = useTranslations('ChangePassword')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -18,7 +20,7 @@ export function ChangePasswordForm() {
     const next = String(form.get('newPassword') ?? '')
     setError('')
     if (next !== String(form.get('confirm') ?? '')) {
-      setError('The new passwords do not match.')
+      setError(t('mismatch'))
       return
     }
     setPending(true)
@@ -29,33 +31,33 @@ export function ChangePasswordForm() {
     })
     setPending(false)
     if (error) {
-      setError(error.message ?? 'Could not change the password.')
+      setError(error.message || t('failed'))
       return
     }
     formElement.reset()
-    toast.success('Password changed', { description: 'Your other sessions were signed out.' })
+    toast.success(t('successTitle'), { description: t('successDescription') })
   }
 
   return (
     <form onSubmit={onSubmit} className="grid gap-5">
       <TextField
-        label="Current password"
+        label={t('currentPassword')}
         name="currentPassword"
         type="password"
         autoComplete="current-password"
         required
       />
       <TextField
-        label="New password"
+        label={t('newPassword')}
         name="newPassword"
         type="password"
         autoComplete="new-password"
-        hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
+        hint={t('newPasswordHint', { min: PASSWORD_MIN_LENGTH })}
         minLength={PASSWORD_MIN_LENGTH}
         required
       />
       <TextField
-        label="Repeat new password"
+        label={t('repeatPassword')}
         name="confirm"
         type="password"
         autoComplete="new-password"
@@ -64,7 +66,7 @@ export function ChangePasswordForm() {
       <FormError>{error}</FormError>
       <div>
         <Button type="submit" loading={pending}>
-          {pending ? 'Saving…' : 'Change password'}
+          {pending ? t('saving') : t('submit')}
         </Button>
       </div>
     </form>

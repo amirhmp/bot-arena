@@ -17,13 +17,28 @@ export function createApiClient() {
   return hc<AppType>(apiBaseUrl(), { init: { credentials: 'include' } })
 }
 
-/** Reads the `{ error }` message of a failed API response. */
-export async function readApiError(res: Response): Promise<string> {
+/**
+ * A failed API response. `message` is the server's own text (English, from the API) and is empty
+ * when the body had none; screens show it through `useErrorMessage()`, which supplies a
+ * translated fallback built from `status`.
+ */
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message = '') {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+/** Reads the `{ error }` message of a failed API response into an `ApiError` to throw. */
+export async function readApiError(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as { error?: unknown }
-    if (typeof body.error === 'string') return body.error
+    if (typeof body.error === 'string') return new ApiError(res.status, body.error)
   } catch {
     // Not JSON.
   }
-  return `Request failed (${res.status})`
+  return new ApiError(res.status)
 }

@@ -1,21 +1,23 @@
 import type { Metadata } from 'next'
+import { getTranslations } from 'next-intl/server'
 import { PageHeader } from '@/components/page-header'
 import { logger } from '@/lib/logger'
 import { StatusView } from './status-view'
 
-export const metadata: Metadata = { title: 'Status' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Status')
+  return { title: t('metaTitle') }
+}
 
 // Never prerender: the log line below should appear for every visit.
 export const dynamic = 'force-dynamic'
 
-export default function StatusPage() {
+export default async function StatusPage() {
+  const t = await getTranslations('Status')
   logger.info({ page: '/admin/status' }, 'status page rendered')
   return (
     <div className="grid max-w-2xl grid-cols-1 gap-6">
-      <PageHeader
-        title="System status"
-        description="Checks the API, the database and the log server every 10 seconds."
-      />
+      <PageHeader title={t('title')} description={t('description')} />
       <StatusView />
     </div>
   )

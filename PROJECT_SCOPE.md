@@ -35,7 +35,7 @@ There is no self-registration in the first release. An admin creates users, sets
 | Platform language   | TypeScript everywhere                                                                                                                                                                                                                    |
 | Bot languages       | Python, JavaScript and TypeScript in the first release. One thin adapter per language speaks JSON lines over stdin/stdout; TypeScript is transpiled at submission. More languages later                                                  |
 | Monorepo            | pnpm workspaces + Turborepo                                                                                                                                                                                                              |
-| Frontend            | Next.js (App Router) + React + Tailwind + shadcn/ui (logical CSS classes, RTL-ready). UI only; business logic lives in the API                                                                                                           |
+| Frontend            | Next.js (App Router) + React + Tailwind + shadcn/ui (logical CSS classes, RTL-ready) + next-intl (English and Persian, cookie-based locale, no URL prefix). UI only; business logic lives in the API                                     |
 | Client state        | Zustand (stores only in client components, created per provider)                                                                                                                                                                         |
 | Server state        | TanStack Query on top of the Hono RPC client                                                                                                                                                                                             |
 | API                 | Hono + Hono RPC (`hc<AppType>`) + Zod validators                                                                                                                                                                                         |
@@ -236,7 +236,7 @@ _Try it: in the admin tools disqualify a bot, re-run a match and cancel a quiz, 
 
 47. Second game to prove the plugin interface.
 48. Optional 3D renderer for the Tank game (Three.js, lazy loaded).
-49. Self-registration and invite codes, bulk user import from CSV, global Elo or TrueSkill ladder, additional languages (C#, Go, Rust, Java), thumbnails and video export, Persian/RTL UI, function-style quiz questions (signature and test harness per language), plagiarism checks, automated Playwright end-to-end tests.
+49. Self-registration and invite codes, bulk user import from CSV, global Elo or TrueSkill ladder, additional languages (C#, Go, Rust, Java), thumbnails and video export, translated API error messages, function-style quiz questions (signature and test harness per language), plagiarism checks, automated Playwright end-to-end tests.
 
 ## 7. Data model
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { CircleAlert, Eye, EyeOff } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useId, useState, type ComponentProps, type ReactNode } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ export function TextField({
   type,
   ...props
 }: { label: string; hint?: string } & ComponentProps<'input'>) {
+  const t = useTranslations('FormParts')
   const id = useId()
   const hintId = hint ? `${id}-hint` : undefined
   const [revealed, setRevealed] = useState(false)
@@ -44,7 +46,7 @@ export function TextField({
             variant="ghost"
             size="icon"
             className="absolute end-0.5 top-1/2 size-8 -translate-y-1/2 text-muted-foreground"
-            aria-label={revealed ? 'Hide password' : 'Show password'}
+            aria-label={revealed ? t('hidePassword') : t('showPassword')}
             aria-pressed={revealed}
             onClick={() => setRevealed((value) => !value)}
           >

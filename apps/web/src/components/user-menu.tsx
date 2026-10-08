@@ -3,12 +3,14 @@
 import type { SessionUser } from '@bot-arena/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, LogOut, Monitor, Moon, Sun, UserRound } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { LocaleRadioGroup } from '@/components/locale-switcher'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +32,9 @@ function initialOf(name: string): string {
 
 /** Account menu: profile link, theme choice and sign-out, which asks for confirmation first. */
 export function UserMenu({ user }: { user: SessionUser }) {
+  const t = useTranslations('UserMenu')
+  const tApp = useTranslations('App')
+  const tRoles = useTranslations('Roles')
   const router = useRouter()
   const queryClient = useQueryClient()
   const { theme, setTheme } = useTheme()
@@ -41,7 +46,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
     const { error } = await authClient.signOut()
     if (error) {
       setPending(false)
-      toast.error('Could not sign out', { description: 'Check your connection and try again.' })
+      toast.error(t('signOutFailedTitle'), { description: t('signOutFailedDescription') })
       return
     }
     queryClient.clear()
@@ -56,7 +61,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
           <Button
             variant="ghost"
             className="h-9 gap-2 px-2"
-            aria-label={`Account menu for ${user.name}`}
+            aria-label={t('accountMenuFor', { name: user.name })}
           >
             <span
               aria-hidden
@@ -73,38 +78,43 @@ export function UserMenu({ user }: { user: SessionUser }) {
             <span className="truncate">{user.name}</span>
             <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
               <span className="truncate">{user.username}</span>
-              <Badge variant="secondary">{user.role}</Badge>
+              <Badge variant="secondary">{tRoles(user.role)}</Badge>
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/account">
               <UserRound aria-hidden />
-              Account
+              {t('account')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-            Theme
+            {t('theme')}
           </DropdownMenuLabel>
           <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={setTheme}>
             <DropdownMenuRadioItem value="light">
               <Sun aria-hidden />
-              Light
+              {t('light')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="dark">
               <Moon aria-hidden />
-              Dark
+              {t('dark')}
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="system">
               <Monitor aria-hidden />
-              System
+              {t('system')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+            {t('language')}
+          </DropdownMenuLabel>
+          <LocaleRadioGroup />
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setConfirmOpen(true)}>
             <LogOut aria-hidden />
-            Sign out
+            {t('signOut')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -112,9 +122,9 @@ export function UserMenu({ user }: { user: SessionUser }) {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Sign out of Bot Arena?"
-        description="You will need your username and password to sign in again."
-        confirmLabel="Sign out"
+        title={t('signOutTitle', { app: tApp('name') })}
+        description={t('signOutDescription')}
+        confirmLabel={t('signOut')}
         pending={pending}
         onConfirm={signOut}
       />

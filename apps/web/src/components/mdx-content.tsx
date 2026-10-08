@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import * as runtime from 'react/jsx-runtime'
 import { Component, useMemo, type ComponentType, type ReactNode } from 'react'
 import { mdxComponents } from './mdx-components'
@@ -17,6 +18,15 @@ function load(compiled: string): MdxBody {
   return result.default
 }
 
+function RenderError() {
+  const t = useTranslations('Mdx')
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {t('renderFailed')}
+    </p>
+  )
+}
+
 class RenderBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   override state = { failed: false }
 
@@ -25,13 +35,7 @@ class RenderBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 
   override render() {
-    return this.state.failed ? (
-      <p role="alert" className="text-sm text-destructive">
-        This statement could not be displayed.
-      </p>
-    ) : (
-      this.props.children
-    )
+    return this.state.failed ? <RenderError /> : this.props.children
   }
 }
 
@@ -45,13 +49,7 @@ export function MdxContent({ compiled }: { compiled: string }) {
     }
   }, [compiled])
 
-  if (!body) {
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        This statement could not be displayed.
-      </p>
-    )
-  }
+  if (!body) return <RenderError />
   const Body = body
   return (
     // Keyed by the code so a new statement resets a boundary that caught an error.

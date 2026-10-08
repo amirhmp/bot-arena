@@ -10,6 +10,7 @@ import {
 } from '@bot-arena/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Eye, Trash2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -21,43 +22,38 @@ import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createApiClient, readApiError } from '@/lib/api'
+import { useErrorMessage } from '@/lib/use-error-message'
 import { ensureOk, fetchQuestion, QUESTIONS_KEY, questionKey, studentViewKey } from './api'
-import { DIFFICULTY_OPTIONS } from './difficulty-badge'
+import { useDifficultyOptions } from './difficulty-badge'
 import { TestCasesEditor } from './test-cases-editor'
 
-// The page shows the title above the statement, so the statement does not start with a heading.
-const STARTER = `Describe the task here. Markdown works: **bold**, \`code\`, lists and tables.
+/** The MDX components a statement may use, as the hint text lists them: `<Note title="…">`. */
+const MDX_COMPONENT_LIST = Object.entries(MDX_COMPONENTS)
+  .map(([name, attrs]) => `<${name}${attrs.map((a) => ` ${a}="…"`).join('')}>`)
+  .join(', ')
+
+/**
+ * The statement a new question starts with. Only the prose is translated; the MDX syntax and the
+ * sample stay as they are. The page shows the title above the statement, so it has no heading.
+ */
+function starterStatement(intro: string, noteTitle: string): string {
+  return `${intro}
 
 \`\`\`python
 print("a code block")
 \`\`\`
 
-<Note title="Constraints">1 ≤ n ≤ 1000</Note>
+<Note title="${noteTitle}">1 ≤ n ≤ 1000</Note>
 
 <Sample input="1 2" output="3" />
 `
-
-const COMPARISON_LABEL = {
-  trimmed: 'Trimmed (default)',
-  strict: 'Strict',
-  token: 'Token by token',
-} as const satisfies Record<ComparisonRule, string>
-const COMPARISON_HINT: Record<ComparisonRule, string> = {
-  trimmed: 'Exact match after trimming whitespace at the ends.',
-  strict: 'Byte for byte.',
-  token: 'The same whitespace-separated tokens in the same order.',
 }
-const COMPARISON_OPTIONS = COMPARISON_RULES.map((value) => ({
-  value,
-  label: COMPARISON_LABEL[value],
-}))
-
-const MDX_HINT = `Components: ${Object.entries(MDX_COMPONENTS)
-  .map(([name, attrs]) => `<${name}${attrs.map((a) => ` ${a}="…"`).join('')}>`)
-  .join(', ')}. No imports or { } expressions.`
 
 /** The page for both creating (no `id`) and editing a question. */
 export function QuestionEditor({ id }: { id?: string }) {
+  const t = useTranslations('QuestionEditor')
+  const tCommon = useTranslations('Common')
+  const errorMessage = useErrorMessage()
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: questionKey(id ?? ''),
     queryFn: () => fetchQuestion(id as string),
@@ -69,9 +65,9 @@ export function QuestionEditor({ id }: { id?: string }) {
   if (error) {
     return (
       <div className="grid justify-items-start gap-3">
-        <FormError>Could not load the question: {error.message}</FormError>
+        <FormError>{t('loadFailed', { detail: errorMessage(error) })}</FormError>
         <Button variant="outline" onClick={() => refetch()} loading={isFetching}>
-          Try again
+          {tCommon('tryAgain')}
         </Button>
       </div>
     )
@@ -80,8 +76,9 @@ export function QuestionEditor({ id }: { id?: string }) {
 }
 
 function EditorSkeleton() {
+  const t = useTranslations('QuestionEditor')
   return (
-    <div className="grid gap-6" role="status" aria-label="Loading question">
+    <div className="grid gap-6" role="status" aria-label={t('loading')}>
       <Skeleton className="h-9 w-64" />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="grid gap-4">
@@ -97,20 +94,22 @@ function EditorSkeleton() {
 
 /** Compiles the MDX on the server a moment after the author stops typing. */
 function useLivePreview(mdx: string) {
+  const t = useTranslations('QuestionEditor')
+  const errorMessage = useErrorMessage()
   const [result, setResult] = useState<MdxPreviewResult | null>(null)
   useEffect(() => {
     let current = true
     const timer = setTimeout(async () => {
       try {
         const res = await createApiClient().questions.preview.$post({ json: { mdx } })
-        if (!res.ok) throw new Error(await readApiError(res))
+        if (!res.ok) throw await readApiError(res)
         const body = await res.json()
         if (current) setResult(body)
       } catch (e) {
         if (current) {
           setResult({
             ok: false,
-            error: { message: e instanceof Error ? e.message : 'The preview failed' },
+            error: { message: e instanceof Error ? errorMessage(e) : t('previewFailed') },
           })
         }
       }
@@ -131,9 +130,20 @@ function parseTags(text: string): string[] {
 }
 
 function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
+  const t = useTranslations('QuestionEditor')
+  const tCommon = useTranslations('Common')
+  const tComparison = useTranslations('Comparison')
+  const errorMessage = useErrorMessage()
+  const difficultyOptions = useDifficultyOptions()
+  const comparisonOptions = COMPARISON_RULES.map((value) => ({
+    value,
+    label: tComparison(`label.${value}`),
+  }))
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [mdx, setMdx] = useState(initial?.statementMdx ?? STARTER)
+  const [mdx, setMdx] = useState(
+    initial?.statementMdx ?? starterStatement(t('starterIntro'), t('starterNoteTitle')),
+  )
   const [comparison, setComparison] = useState<ComparisonRule>(initial?.comparison ?? 'trimmed')
   const [error, setError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -154,16 +164,16 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
       const api = createApiClient().questions
       if (initial) {
         const res = await api[':id'].$patch({ param: { id: initial.id }, json })
-        if (!res.ok) throw new Error(await readApiError(res))
+        if (!res.ok) throw await readApiError(res)
         return (await res.json()).question
       }
       const res = await api.$post({ json })
-      if (!res.ok) throw new Error(await readApiError(res))
+      if (!res.ok) throw await readApiError(res)
       return (await res.json()).question
     },
     onSuccess: async (question) => {
       setError('')
-      toast.success(initial ? 'Changes saved' : 'Question created', {
+      toast.success(initial ? tCommon('changesSaved') : t('created'), {
         description: question.title,
       })
       queryClient.setQueryData(questionKey(question.id), question)
@@ -174,7 +184,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
       // A new question continues on its own page, where tests can be added.
       if (!initial) router.replace(`/admin/questions/${question.id}`)
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorMessage(e)),
   })
 
   const remove = useMutation({
@@ -185,13 +195,13 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
       await ensureOk(res)
     },
     onSuccess: async () => {
-      toast.success('Question deleted', { description: initial?.title })
+      toast.success(t('deleted'), { description: initial?.title })
       await queryClient.invalidateQueries({ queryKey: QUESTIONS_KEY })
       router.push('/admin/questions')
     },
     onError: (e) => {
       setConfirmingDelete(false)
-      toast.error('Could not delete the question', { description: e.message })
+      toast.error(t('deleteFailed'), { description: errorMessage(e) })
     },
   })
 
@@ -201,16 +211,12 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
         <Button asChild variant="link" size="sm" className="h-auto p-0">
           <Link href="/admin/questions">
             <ArrowLeft className="rtl:-scale-x-100" aria-hidden />
-            Question bank
+            {t('back')}
           </Link>
         </Button>
         <PageHeader
-          title={initial ? 'Edit question' : 'New question'}
-          description={
-            initial
-              ? undefined
-              : 'Write the statement and set the limits. You add tests once the question is created.'
-          }
+          title={initial ? t('titleEdit') : t('titleNew')}
+          description={initial ? undefined : t('descriptionNew')}
         />
       </div>
       {initial ? (
@@ -218,7 +224,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
           <Button asChild variant="outline">
             <Link href={`/admin/questions/${initial.id}/preview`}>
               <Eye aria-hidden />
-              Student preview
+              {tCommon('studentPreview')}
             </Link>
           </Button>
           <Button
@@ -227,7 +233,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2 aria-hidden />
-            Delete
+            {tCommon('delete')}
           </Button>
         </div>
       ) : null}
@@ -242,7 +248,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
       >
         <div className="grid min-w-0 content-start gap-4">
           <TextField
-            label="Title"
+            label={t('fieldTitle')}
             name="title"
             defaultValue={initial?.title ?? ''}
             required
@@ -250,21 +256,21 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
           />
           <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
             <SelectField
-              label="Difficulty"
+              label={t('fieldDifficulty')}
               name="difficulty"
               defaultValue={initial?.difficulty ?? 'medium'}
-              options={DIFFICULTY_OPTIONS}
+              options={difficultyOptions}
             />
             <TextField
-              label="Tags"
+              label={t('fieldTags')}
               name="tags"
               defaultValue={initial?.tags.join(', ') ?? ''}
-              hint="Separated by commas, for example graphs, dp."
+              hint={t('fieldTagsHint')}
               autoCapitalize="none"
               spellCheck={false}
             />
             <TextField
-              label="Time limit per test (ms)"
+              label={t('fieldTimeLimit')}
               name="timeLimitMs"
               type="number"
               inputMode="numeric"
@@ -274,7 +280,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
               required
             />
             <TextField
-              label="Memory limit (MB)"
+              label={t('fieldMemoryLimit')}
               name="memoryLimitMb"
               type="number"
               inputMode="numeric"
@@ -284,7 +290,7 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
               required
             />
             <TextField
-              label="Max score"
+              label={t('fieldMaxScore')}
               name="maxScore"
               type="number"
               inputMode="numeric"
@@ -294,17 +300,17 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
               required
             />
             <SelectField
-              label="Output comparison"
+              label={t('fieldComparison')}
               name="comparison"
               defaultValue={comparison}
-              options={COMPARISON_OPTIONS}
-              hint={COMPARISON_HINT[comparison]}
+              options={comparisonOptions}
+              hint={tComparison(`hint.${comparison}`)}
               onValueChange={(value) => setComparison(value as ComparisonRule)}
             />
           </div>
           <TextareaField
-            label="Statement (MDX)"
-            hint={MDX_HINT}
+            label={t('fieldStatement')}
+            hint={t('mdxHint', { components: MDX_COMPONENT_LIST })}
             value={mdx}
             onChange={(e) => setMdx(e.target.value)}
             dir="ltr"
@@ -316,18 +322,18 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
           <FormError>{error}</FormError>
           <div>
             <Button type="submit" loading={save.isPending}>
-              {initial ? 'Save changes' : 'Create question'}
+              {initial ? tCommon('saveChanges') : t('submitCreate')}
             </Button>
           </div>
         </div>
 
         <section aria-labelledby="live-preview" className="min-w-0 content-start">
           <h2 id="live-preview" className="mb-2 text-base">
-            Live preview
+            {t('livePreview')}
           </h2>
-          <div aria-label="Statement preview" className="min-h-40 rounded-lg border bg-card p-4">
+          <div aria-label={t('previewLabel')} className="min-h-40 rounded-lg border bg-card p-4">
             {preview === null ? (
-              <div className="grid gap-2" role="status" aria-label="Compiling the statement">
+              <div className="grid gap-2" role="status" aria-label={t('compiling')}>
                 <Skeleton className="h-6 w-2/3" />
                 <Skeleton className="h-4" />
                 <Skeleton className="h-4 w-5/6" />
@@ -336,13 +342,18 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
               <MdxContent compiled={preview.compiled} />
             ) : (
               <FormError>
-                {`This statement cannot be saved${
-                  preview.error.line
-                    ? ` (line ${preview.error.line}${
-                        preview.error.column ? `, column ${preview.error.column}` : ''
-                      })`
-                    : ''
-                }: ${preview.error.message}`}
+                {preview.error.line
+                  ? preview.error.column
+                    ? t('invalidStatementLineColumn', {
+                        line: preview.error.line,
+                        column: preview.error.column,
+                        message: preview.error.message,
+                      })
+                    : t('invalidStatementLine', {
+                        line: preview.error.line,
+                        message: preview.error.message,
+                      })
+                  : t('invalidStatement', { message: preview.error.message })}
               </FormError>
             )}
           </div>
@@ -351,25 +362,21 @@ function QuestionForm({ initial }: { initial: QuestionDetail | null }) {
 
       <section aria-labelledby="tests-heading" className="grid gap-3">
         <h2 id="tests-heading" className="text-xl">
-          Tests
+          {t('testsTitle')}
         </h2>
         {initial ? (
           <TestCasesEditor questionId={initial.id} />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Create the question first, then add sample and hidden tests here.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('testsAfterCreate')}</p>
         )}
       </section>
 
       <ConfirmDialog
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
-        title={`Delete ${initial?.title ?? 'this question'}?`}
-        description={`This permanently deletes the question and its ${
-          initial?.tests.length ?? 0
-        } tests. It cannot be undone.`}
-        confirmLabel="Delete question"
+        title={initial ? t('deleteTitle', { title: initial.title }) : t('deleteTitleFallback')}
+        description={t('deleteDescription', { count: initial?.tests.length ?? 0 })}
+        confirmLabel={t('deleteConfirm')}
         destructive
         pending={remove.isPending}
         onConfirm={() => remove.mutate()}

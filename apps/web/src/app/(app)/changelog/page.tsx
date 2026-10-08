@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { getTranslations } from 'next-intl/server'
 import { Fragment, type ReactNode } from 'react'
 import { parseChangelog, type ChangelogBlock } from '@/lib/changelog-parse'
 import { readChangelog } from '@/lib/changelog'
@@ -41,10 +42,23 @@ function Block({ block }: { block: ChangelogBlock }) {
   }
 }
 
-export const metadata: Metadata = { title: 'Changelog' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Changelog')
+  return { title: t('metaTitle') }
+}
 
 export default async function ChangelogPage() {
-  const blocks = parseChangelog(await readChangelog())
+  const t = await getTranslations('Changelog')
+  const source = await readChangelog()
+  if (source === null) {
+    return (
+      <article className="max-w-2xl">
+        <h1 className="text-3xl">{t('title')}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t('unavailable')}</p>
+      </article>
+    )
+  }
+  const blocks = parseChangelog(source)
   return (
     <article className="max-w-2xl">
       {blocks.map((block, index) => (

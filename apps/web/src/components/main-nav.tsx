@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -12,9 +13,10 @@ function isActive(pathname: string, href: string): boolean {
 
 /** Main navigation. The current page is marked for sighted users and for screen readers. */
 export function MainNav({ items }: { items: NavItem[] }) {
+  const t = useTranslations('Nav')
   const pathname = usePathname()
   return (
-    <nav aria-label="Main" className="-mb-px flex overflow-x-auto">
+    <nav aria-label={t('main')} className="-mb-px flex overflow-x-auto">
       {items.map((item) => {
         const active = isActive(pathname, item.href)
         return (

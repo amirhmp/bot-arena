@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import type { ReactNode } from 'react'
 import {
   AlertDialog,
@@ -38,6 +39,7 @@ export function ConfirmDialog({
   pending?: boolean
   onConfirm: () => void
 }) {
+  const t = useTranslations('Common')
   return (
     <AlertDialog open={open} onOpenChange={(next) => (pending ? undefined : onOpenChange(next))}>
       <AlertDialogContent>
@@ -46,7 +48,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{t('cancel')}</AlertDialogCancel>
           <Button
             variant={destructive ? 'destructive' : 'default'}
             loading={pending}

@@ -1,4 +1,5 @@
 import type { MdxComponentName } from '@bot-arena/shared'
+import { useTranslations } from 'next-intl'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import {
   Table,
@@ -23,18 +24,19 @@ export function SampleBlock({
   output?: string
   title?: string
 }) {
+  const t = useTranslations('Mdx')
   return (
     <div className="my-3 rounded-lg border bg-card p-3">
       {title ? <p className="mb-2 text-xs font-medium text-muted-foreground">{title}</p> : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="grid min-w-0 gap-1">
-          <p className="text-xs text-muted-foreground">Input</p>
+          <p className="text-xs text-muted-foreground">{t('input')}</p>
           <pre dir="ltr" className={preClass}>
             {input ?? ''}
           </pre>
         </div>
         <div className="grid min-w-0 gap-1">
-          <p className="text-xs text-muted-foreground">Output</p>
+          <p className="text-xs text-muted-foreground">{t('output')}</p>
           <pre dir="ltr" className={preClass}>
             {output ?? ''}
           </pre>
@@ -53,6 +55,7 @@ function Aside({
   tone: 'note' | 'warning'
   children?: ReactNode
 }) {
+  const t = useTranslations('Mdx')
   return (
     <aside
       className={cn(
@@ -61,7 +64,7 @@ function Aside({
       )}
     >
       <p className="mb-1 text-sm font-semibold">
-        {title ?? (tone === 'note' ? 'Note' : 'Warning')}
+        {title ?? (tone === 'note' ? t('note') : t('warning'))}
       </p>
       <div className="grid gap-2">{children}</div>
     </aside>

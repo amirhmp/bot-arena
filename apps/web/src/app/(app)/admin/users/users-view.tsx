@@ -1,8 +1,9 @@
 'use client'
 
-import { ROLES, type Role, type UserSummary } from '@bot-arena/shared'
+import { PASSWORD_MIN_LENGTH, ROLES, type Role, type UserSummary } from '@bot-arena/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, MoreHorizontal, Pencil, Plus, UserCheck, UserX } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -35,26 +36,34 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { createApiClient, readApiError } from '@/lib/api'
+import { useErrorMessage } from '@/lib/use-error-message'
 
 const USERS_KEY = ['users']
 
-const ROLE_LABEL = { admin: 'Admin', player: 'Player' } as const satisfies Record<Role, string>
-const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: ROLE_LABEL[role] }))
+/** The role choices for a select, labelled in the current language. */
+function useRoleOptions() {
+  const t = useTranslations('Roles')
+  return ROLES.map((role) => ({ value: role, label: t(role) }))
+}
 
 type DialogState = { kind: 'create' } | { kind: 'edit' | 'password'; user: UserSummary }
 
 async function fetchUsers(): Promise<UserSummary[]> {
   const res = await createApiClient().users.$get({ query: {} })
-  if (!res.ok) throw new Error(await readApiError(res))
+  if (!res.ok) throw await readApiError(res)
   return (await res.json()).users
 }
 
 /** Throws the API's error message for a failed response, so mutations surface it. */
 async function ensureOk(res: Response): Promise<void> {
-  if (!res.ok) throw new Error(await readApiError(res))
+  if (!res.ok) throw await readApiError(res)
 }
 
 export function UsersView({ currentUserId }: { currentUserId: string }) {
+  const t = useTranslations('Users')
+  const tCommon = useTranslations('Common')
+  const tRoles = useTranslations('Roles')
+  const errorMessage = useErrorMessage()
   const queryClient = useQueryClient()
   // `dialog` keeps its last value while the dialog animates closed; `dialogKey` resets the form.
   const [dialog, setDialog] = useState<DialogState>({ kind: 'create' })
@@ -90,10 +99,10 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
     },
     onSuccess: (_result, { user, active }) => {
       setDeactivating(null)
-      toast.success(active ? 'User activated' : 'User deactivated', { description: user.name })
+      toast.success(active ? t('activated') : t('deactivatedToast'), { description: user.name })
       return refresh()
     },
-    onError: (e) => toast.error('Could not update the user', { description: e.message }),
+    onError: (e) => toast.error(t('updateFailed'), { description: errorMessage(e) }),
   })
 
   if (isPending) return <UsersSkeleton />
@@ -101,9 +110,9 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
   if (error) {
     return (
       <div className="grid justify-items-start gap-3">
-        <FormError>Could not load users: {error.message}</FormError>
+        <FormError>{t('loadFailed', { detail: errorMessage(error) })}</FormError>
         <Button variant="outline" onClick={() => refetch()} loading={isFetching}>
-          Try again
+          {tCommon('tryAgain')}
         </Button>
       </div>
     )
@@ -113,11 +122,11 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
     <div className="grid grid-cols-1 gap-3">
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground" data-numeric>
-          {data.length === 1 ? '1 user' : `${data.length} users`}
+          {t('count', { count: data.length })}
         </p>
         <Button onClick={() => openDialog({ kind: 'create' })}>
           <Plus aria-hidden />
-          New user
+          {t('newUser')}
         </Button>
       </div>
 
@@ -125,12 +134,12 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Name</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{t('colName')}</TableHead>
+              <TableHead>{t('colUsername')}</TableHead>
+              <TableHead>{t('colRole')}</TableHead>
+              <TableHead>{t('colStatus')}</TableHead>
               <TableHead className="w-12">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{tCommon('actions')}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -142,19 +151,19 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
                       {user.name}
-                      {isSelf ? <Badge variant="outline">You</Badge> : null}
+                      {isSelf ? <Badge variant="outline">{t('you')}</Badge> : null}
                     </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{user.username}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{ROLE_LABEL[user.role]}</Badge>
+                    <Badge variant="secondary">{tRoles(user.role)}</Badge>
                   </TableCell>
                   <TableCell>
                     {user.active ? (
-                      <Badge variant="success">Active</Badge>
+                      <Badge variant="success">{t('active')}</Badge>
                     ) : (
                       <Badge variant="outline" className="text-muted-foreground">
-                        Deactivated
+                        {t('deactivated')}
                       </Badge>
                     )}
                   </TableCell>
@@ -165,7 +174,7 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
                           variant="ghost"
                           size="icon"
                           className="size-8"
-                          aria-label={`Actions for ${user.name}`}
+                          aria-label={t('actionsFor', { name: user.name })}
                         >
                           <MoreHorizontal aria-hidden />
                         </Button>
@@ -173,11 +182,11 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => openDialog({ kind: 'edit', user })}>
                           <Pencil aria-hidden />
-                          Edit
+                          {tCommon('edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => openDialog({ kind: 'password', user })}>
                           <KeyRound aria-hidden />
-                          Reset password
+                          {t('resetPassword')}
                         </DropdownMenuItem>
                         {/* The API refuses to deactivate yourself, so the option is not offered. */}
                         {!user.active || !isSelf ? <DropdownMenuSeparator /> : null}
@@ -188,7 +197,7 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
                               onSelect={() => setDeactivating(user)}
                             >
                               <UserX aria-hidden />
-                              Deactivate
+                              {t('deactivate')}
                             </DropdownMenuItem>
                           )
                         ) : (
@@ -196,7 +205,7 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
                             onSelect={() => setActive.mutate({ user, active: true })}
                           >
                             <UserCheck aria-hidden />
-                            Activate
+                            {t('activate')}
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -212,17 +221,17 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent key={dialogKey}>
           {dialog.kind === 'create' ? (
-            <CreateUserForm onDone={(name) => closeDialog('User created', name)} />
+            <CreateUserForm onDone={(name) => closeDialog(t('created'), name)} />
           ) : dialog.kind === 'edit' ? (
             <EditUserForm
               user={dialog.user}
               isSelf={dialog.user.id === currentUserId}
-              onDone={() => closeDialog('Changes saved')}
+              onDone={() => closeDialog(tCommon('changesSaved'))}
             />
           ) : (
             <ResetPasswordForm
               user={dialog.user}
-              onDone={() => closeDialog('Password reset', dialog.user.name)}
+              onDone={() => closeDialog(t('resetDone'), dialog.user.name)}
             />
           )}
         </DialogContent>
@@ -233,9 +242,13 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
         onOpenChange={(open) => {
           if (!open) setDeactivating(null)
         }}
-        title={`Deactivate ${deactivating?.name ?? 'this user'}?`}
-        description="They will be signed out right away and cannot sign in until you activate them again. Their data is kept."
-        confirmLabel="Deactivate user"
+        title={
+          deactivating
+            ? t('deactivateTitle', { name: deactivating.name })
+            : t('deactivateTitleFallback')
+        }
+        description={t('deactivateDescription')}
+        confirmLabel={t('deactivateConfirm')}
         destructive
         pending={setActive.isPending}
         onConfirm={() => deactivating && setActive.mutate({ user: deactivating, active: false })}
@@ -245,8 +258,9 @@ export function UsersView({ currentUserId }: { currentUserId: string }) {
 }
 
 function UsersSkeleton() {
+  const t = useTranslations('Users')
   return (
-    <div className="grid gap-3" role="status" aria-label="Loading users">
+    <div className="grid gap-3" role="status" aria-label={t('loading')}>
       <div className="flex items-center justify-between">
         <Skeleton className="h-5 w-16" />
         <Skeleton className="h-9 w-28" />
@@ -281,6 +295,7 @@ function FormShell({
   onSubmit: (form: FormData) => void
   children: ReactNode
 }) {
+  const tCommon = useTranslations('Common')
   return (
     <form
       className="grid gap-4"
@@ -297,7 +312,7 @@ function FormShell({
       <FormError>{error}</FormError>
       <DialogFooter>
         <DialogClose asChild>
-          <Button variant="outline">Cancel</Button>
+          <Button variant="outline">{tCommon('cancel')}</Button>
         </DialogClose>
         <Button type="submit" loading={pending}>
           {submitLabel}
@@ -308,6 +323,9 @@ function FormShell({
 }
 
 function CreateUserForm({ onDone }: { onDone: (name: string) => void }) {
+  const t = useTranslations('Users')
+  const errorMessage = useErrorMessage()
+  const roleOptions = useRoleOptions()
   const [error, setError] = useState('')
   const create = useMutation({
     mutationFn: async (form: FormData) => {
@@ -323,25 +341,25 @@ function CreateUserForm({ onDone }: { onDone: (name: string) => void }) {
       return String(form.get('name') ?? '')
     },
     onSuccess: onDone,
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorMessage(e)),
   })
 
   return (
     <FormShell
-      title="New user"
-      description="They sign in with these details. Share the password with them directly."
+      title={t('createTitle')}
+      description={t('createDescription')}
       error={error}
       pending={create.isPending}
-      submitLabel="Create user"
+      submitLabel={t('createSubmit')}
       onSubmit={(form) => {
         setError('')
         create.mutate(form)
       }}
     >
       <TextField
-        label="Username"
+        label={t('usernameLabel')}
         name="username"
-        hint="Lowercase letters, digits, dots and underscores."
+        hint={t('usernameHint')}
         autoComplete="off"
         autoCapitalize="none"
         spellCheck={false}
@@ -349,16 +367,16 @@ function CreateUserForm({ onDone }: { onDone: (name: string) => void }) {
         minLength={3}
         maxLength={32}
       />
-      <TextField label="Name" name="name" autoComplete="off" required maxLength={100} />
+      <TextField label={t('nameLabel')} name="name" autoComplete="off" required maxLength={100} />
       <TextField
-        label="Initial password"
+        label={t('createInitialPassword')}
         name="password"
-        hint="At least 8 characters. Shown as you type so you can pass it on."
+        hint={t('passwordHint', { min: PASSWORD_MIN_LENGTH })}
         autoComplete="off"
         required
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
       />
-      <SelectField label="Role" name="role" defaultValue="player" options={ROLE_OPTIONS} />
+      <SelectField label={t('roleLabel')} name="role" defaultValue="player" options={roleOptions} />
     </FormShell>
   )
 }
@@ -372,6 +390,10 @@ function EditUserForm({
   isSelf: boolean
   onDone: () => void
 }) {
+  const t = useTranslations('Users')
+  const tCommon = useTranslations('Common')
+  const errorMessage = useErrorMessage()
+  const roleOptions = useRoleOptions()
   const [error, setError] = useState('')
   const update = useMutation({
     mutationFn: async (form: FormData) => {
@@ -387,23 +409,23 @@ function EditUserForm({
       await ensureOk(res)
     },
     onSuccess: onDone,
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorMessage(e)),
   })
 
   return (
     <FormShell
-      title={`Edit ${user.name}`}
-      description="Changing the username changes how they sign in."
+      title={t('editTitle', { name: user.name })}
+      description={t('editDescription')}
       error={error}
       pending={update.isPending}
-      submitLabel="Save changes"
+      submitLabel={tCommon('saveChanges')}
       onSubmit={(form) => {
         setError('')
         update.mutate(form)
       }}
     >
       <TextField
-        label="Username"
+        label={t('usernameLabel')}
         name="username"
         defaultValue={user.username}
         autoCapitalize="none"
@@ -412,20 +434,28 @@ function EditUserForm({
         minLength={3}
         maxLength={32}
       />
-      <TextField label="Name" name="name" defaultValue={user.name} required maxLength={100} />
+      <TextField
+        label={t('nameLabel')}
+        name="name"
+        defaultValue={user.name}
+        required
+        maxLength={100}
+      />
       <SelectField
-        label="Role"
+        label={t('roleLabel')}
         name="role"
         defaultValue={user.role}
-        options={ROLE_OPTIONS}
+        options={roleOptions}
         disabled={isSelf}
-        hint={isSelf ? 'You cannot change your own role.' : undefined}
+        hint={isSelf ? t('selfRoleHint') : undefined}
       />
     </FormShell>
   )
 }
 
 function ResetPasswordForm({ user, onDone }: { user: UserSummary; onDone: () => void }) {
+  const t = useTranslations('Users')
+  const errorMessage = useErrorMessage()
   const [error, setError] = useState('')
   const reset = useMutation({
     mutationFn: async (form: FormData) => {
@@ -436,28 +466,28 @@ function ResetPasswordForm({ user, onDone }: { user: UserSummary; onDone: () => 
       await ensureOk(res)
     },
     onSuccess: onDone,
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorMessage(e)),
   })
 
   return (
     <FormShell
-      title={`Reset password for ${user.name}`}
-      description="They are signed out everywhere and must use the new password."
+      title={t('resetTitle', { name: user.name })}
+      description={t('resetDescription')}
       error={error}
       pending={reset.isPending}
-      submitLabel="Reset password"
+      submitLabel={t('resetSubmit')}
       onSubmit={(form) => {
         setError('')
         reset.mutate(form)
       }}
     >
       <TextField
-        label="New password"
+        label={t('resetNewPassword')}
         name="password"
-        hint="At least 8 characters. Shown as you type so you can pass it on."
+        hint={t('passwordHint', { min: PASSWORD_MIN_LENGTH })}
         autoComplete="off"
         required
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
       />
     </FormShell>
   )

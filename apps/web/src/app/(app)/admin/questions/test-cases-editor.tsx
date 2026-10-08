@@ -3,6 +3,7 @@
 import { QUESTION_LIMITS, type TestCase } from '@bot-arena/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, EyeOff, Trash2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createApiClient } from '@/lib/api'
+import { useErrorMessage } from '@/lib/use-error-message'
 import { ensureOk, fetchQuestion, QUESTIONS_KEY, questionKey, studentViewKey } from './api'
 
 type Draft = { visible: boolean; stdin: string; expectedOutput: string }
@@ -19,6 +21,9 @@ const dataClass = 'min-h-24 font-mono'
 
 /** Sample (visible) and hidden tests of one question: add, edit, reorder and delete. */
 export function TestCasesEditor({ questionId }: { questionId: string }) {
+  const t = useTranslations('TestCases')
+  const tCommon = useTranslations('Common')
+  const errorMessage = useErrorMessage()
   const queryClient = useQueryClient()
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: questionKey(questionId),
@@ -42,7 +47,7 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
       await ensureOk(res)
     },
     onSuccess: () => {
-      toast.success('Test added')
+      toast.success(t('added'))
       return refresh()
     },
   })
@@ -56,12 +61,12 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
       await ensureOk(res)
     },
     onSuccess: () => refresh(),
-    onError: (e) => toast.error('Could not reorder the tests', { description: e.message }),
+    onError: (e) => toast.error(t('reorderFailed'), { description: errorMessage(e) }),
   })
 
   if (isPending) {
     return (
-      <div className="grid gap-3" role="status" aria-label="Loading tests">
+      <div className="grid gap-3" role="status" aria-label={t('loading')}>
         <Skeleton className="h-40 rounded-lg" />
         <Skeleton className="h-40 rounded-lg" />
       </div>
@@ -70,9 +75,9 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
   if (error) {
     return (
       <div className="grid justify-items-start gap-3">
-        <FormError>Could not load tests: {error.message}</FormError>
+        <FormError>{t('loadFailed', { detail: errorMessage(error) })}</FormError>
         <Button variant="outline" onClick={() => refetch()} loading={isFetching}>
-          Try again
+          {tCommon('tryAgain')}
         </Button>
       </div>
     )
@@ -90,19 +95,14 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
   return (
     <div className="grid grid-cols-1 gap-4">
       <p className="max-w-prose text-sm text-muted-foreground">
-        Each test is a program input (stdin) and the expected output. Sample tests are shown to
-        students. Hidden tests are only used for grading and never leave the server.{' '}
-        <span data-numeric>
-          {samples} sample, {tests.length - samples} hidden.
-        </span>
+        {t('intro')}{' '}
+        <span data-numeric>{t('counts', { samples, hidden: tests.length - samples })}</span>
       </p>
 
       {tests.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6">
-          <h3 className="text-base font-semibold">No tests yet</h3>
-          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            Add a sample test students can see, then hidden tests for grading.
-          </p>
+          <h3 className="text-base font-semibold">{t('emptyTitle')}</h3>
+          <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('emptyText')}</p>
         </div>
       ) : (
         <ol className="grid gap-3">
@@ -127,7 +127,7 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
         <NewTest add={add} />
       ) : (
         <p className="text-sm text-muted-foreground">
-          This question has the maximum of {QUESTION_LIMITS.testsPerQuestionMax} tests.
+          {t('maxReached', { max: QUESTION_LIMITS.testsPerQuestionMax })}
         </p>
       )}
     </div>
@@ -135,12 +135,13 @@ export function TestCasesEditor({ questionId }: { questionId: string }) {
 }
 
 function KindBadge({ visible }: { visible: boolean }) {
+  const t = useTranslations('TestCases')
   return visible ? (
-    <Badge variant="success">Sample</Badge>
+    <Badge variant="success">{t('sample')}</Badge>
   ) : (
     <Badge variant="outline">
       <EyeOff aria-hidden />
-      Hidden
+      {t('hidden')}
     </Badge>
   )
 }
@@ -164,6 +165,8 @@ function TestRow({
   onMove: (delta: -1 | 1) => void
   onChanged: () => Promise<unknown>
 }) {
+  const t = useTranslations('TestCases')
+  const errorMessage = useErrorMessage()
   const [draft, setDraft] = useState<Draft>({
     visible: test.visible,
     stdin: test.stdin,
@@ -186,10 +189,10 @@ function TestRow({
     },
     onSuccess: () => {
       setError('')
-      toast.success('Test saved', { description: `Test ${number}` })
+      toast.success(t('saved'), { description: t('testNumber', { number }) })
       return onChanged()
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(errorMessage(e)),
   })
 
   const remove = useMutation({
@@ -201,12 +204,12 @@ function TestRow({
     },
     onSuccess: () => {
       setConfirmingDelete(false)
-      toast.success('Test deleted', { description: `Test ${number}` })
+      toast.success(t('deleted'), { description: t('testNumber', { number }) })
       return onChanged()
     },
     onError: (e) => {
       setConfirmingDelete(false)
-      toast.error('Could not delete the test', { description: e.message })
+      toast.error(t('deleteFailed'), { description: errorMessage(e) })
     },
   })
 
@@ -214,14 +217,14 @@ function TestRow({
     <div className="grid gap-3 rounded-lg border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-base font-semibold">Test {number}</h3>
+          <h3 className="text-base font-semibold">{t('testNumber', { number })}</h3>
           <KindBadge visible={test.visible} />
         </div>
         <div className="flex gap-1">
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Move test ${number} up`}
+            aria-label={t('moveUp', { number })}
             disabled={!canMoveUp || busy}
             onClick={() => onMove(-1)}
           >
@@ -230,7 +233,7 @@ function TestRow({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Move test ${number} down`}
+            aria-label={t('moveDown', { number })}
             disabled={!canMoveDown || busy}
             onClick={() => onMove(1)}
           >
@@ -240,7 +243,7 @@ function TestRow({
             variant="ghost"
             size="icon"
             className="text-destructive"
-            aria-label={`Delete test ${number}`}
+            aria-label={t('deleteAria', { number })}
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2 aria-hidden />
@@ -249,7 +252,7 @@ function TestRow({
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TextareaField
-          label="Input (stdin)"
+          label={t('inputLabel')}
           value={draft.stdin}
           onChange={(e) => setDraft({ ...draft, stdin: e.target.value })}
           dir="ltr"
@@ -257,7 +260,7 @@ function TestRow({
           className={dataClass}
         />
         <TextareaField
-          label="Expected output"
+          label={t('outputLabel')}
           value={draft.expectedOutput}
           onChange={(e) => setDraft({ ...draft, expectedOutput: e.target.value })}
           dir="ltr"
@@ -268,21 +271,21 @@ function TestRow({
       <FormError>{error}</FormError>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <CheckboxField
-          label="Sample (visible to students)"
+          label={t('sampleCheckbox')}
           checked={draft.visible}
           onCheckedChange={(visible) => setDraft({ ...draft, visible })}
         />
         <Button disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>
-          Save test
+          {t('save')}
         </Button>
       </div>
 
       <ConfirmDialog
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
-        title={`Delete test ${number}?`}
-        description="The test is removed from the question and from grading. It cannot be undone."
-        confirmLabel="Delete test"
+        title={t('deleteTitle', { number })}
+        description={t('deleteDescription')}
+        confirmLabel={t('deleteConfirm')}
         destructive
         pending={remove.isPending}
         onConfirm={() => remove.mutate()}
@@ -296,6 +299,8 @@ function NewTest({
 }: {
   add: { isPending: boolean; mutateAsync: (draft: Draft) => Promise<unknown> }
 }) {
+  const t = useTranslations('TestCases')
+  const errorMessage = useErrorMessage()
   const [draft, setDraft] = useState<Draft>({ visible: true, stdin: '', expectedOutput: '' })
   const [error, setError] = useState('')
 
@@ -311,14 +316,14 @@ function NewTest({
           setDraft({ visible: draft.visible, stdin: '', expectedOutput: '' })
         } catch (err) {
           // Keep the draft so nothing typed is lost.
-          setError(err instanceof Error ? err.message : 'Could not add the test')
+          setError(err instanceof Error ? errorMessage(err) : t('addFailed'))
         }
       }}
     >
-      <h3 className="text-base font-semibold">Add a test</h3>
+      <h3 className="text-base font-semibold">{t('addTitle')}</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TextareaField
-          label="Input (stdin)"
+          label={t('inputLabel')}
           value={draft.stdin}
           onChange={(e) => setDraft({ ...draft, stdin: e.target.value })}
           dir="ltr"
@@ -326,7 +331,7 @@ function NewTest({
           className={dataClass}
         />
         <TextareaField
-          label="Expected output"
+          label={t('outputLabel')}
           value={draft.expectedOutput}
           onChange={(e) => setDraft({ ...draft, expectedOutput: e.target.value })}
           dir="ltr"
@@ -337,12 +342,12 @@ function NewTest({
       <FormError>{error}</FormError>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <CheckboxField
-          label="Sample (visible to students)"
+          label={t('sampleCheckbox')}
           checked={draft.visible}
           onCheckedChange={(visible) => setDraft({ ...draft, visible })}
         />
         <Button type="submit" loading={add.isPending}>
-          Add test
+          {t('addSubmit')}
         </Button>
       </div>
     </form>

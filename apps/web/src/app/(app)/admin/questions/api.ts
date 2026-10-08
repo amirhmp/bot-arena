@@ -7,11 +7,11 @@ export const studentViewKey = (id: string) => ['question', id, 'student-view'] a
 
 /** Throws the API's error message for a failed response, so mutations surface it. */
 export async function ensureOk(res: Response): Promise<void> {
-  if (!res.ok) throw new Error(await readApiError(res))
+  if (!res.ok) throw await readApiError(res)
 }
 
 export async function fetchQuestion(id: string): Promise<QuestionDetail> {
   const res = await createApiClient().questions[':id'].$get({ param: { id } })
-  if (!res.ok) throw new Error(await readApiError(res))
+  if (!res.ok) throw await readApiError(res)
   return (await res.json()).question
 }

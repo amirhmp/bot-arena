@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 import { FormError, TextField } from '@/components/form-parts'
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 
 export function LoginForm({ next }: { next: string }) {
+  const t = useTranslations('Login')
   const router = useRouter()
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -21,7 +23,7 @@ export function LoginForm({ next }: { next: string }) {
       password: String(form.get('password') ?? ''),
     })
     if (error) {
-      setError(error.message ?? 'Could not sign in. Check your username and password.')
+      setError(error.message || t('failed'))
       setPending(false)
       return
     }
@@ -32,7 +34,7 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <form onSubmit={onSubmit} className="mt-8 grid gap-5">
       <TextField
-        label="Username"
+        label={t('username')}
         name="username"
         autoComplete="username"
         autoCapitalize="none"
@@ -41,7 +43,7 @@ export function LoginForm({ next }: { next: string }) {
         required
       />
       <TextField
-        label="Password"
+        label={t('password')}
         name="password"
         type="password"
         autoComplete="current-password"
@@ -49,7 +51,7 @@ export function LoginForm({ next }: { next: string }) {
       />
       <FormError>{error}</FormError>
       <Button type="submit" size="lg" loading={pending}>
-        {pending ? 'Signing in…' : 'Sign in'}
+        {pending ? t('submitting') : t('submit')}
       </Button>
     </form>
   )

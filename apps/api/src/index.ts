@@ -6,6 +6,7 @@ import { createApp } from './app'
 import { createAuth } from './auth'
 import { ensureInitialAdmin } from './bootstrap'
 import { loadEnv } from './env'
+import { createPrismaQuestionStore } from './questions/prisma-store'
 
 const env = loadEnv()
 
@@ -41,6 +42,7 @@ if (env.ADMIN_PASSWORD) {
 const app = createApp({
   logger,
   auth,
+  questions: createPrismaQuestionStore(prisma),
   status: { pingDatabase: () => pingDatabase(prisma), seqUrl },
   corsOrigin: env.NODE_ENV === 'production' ? undefined : env.WEB_ORIGIN,
 })

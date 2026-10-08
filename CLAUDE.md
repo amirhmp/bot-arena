@@ -16,9 +16,10 @@ Also update the "Current state" section when a phase from `PROJECT_SCOPE.md` sec
 
 ## Current state
 
-- **Phase 0 (Foundation) and Phase 1 (Users and roles) are implemented.** Next up: Phase 2 (question bank). Follow the delivery order in `PROJECT_SCOPE.md`; do not skip ahead.
-- Not built yet: worker, queue, sandbox, engine, games, viewer, judge, questions, quizzes. Their directories do not exist yet.
-- Prisma schema has the Better Auth tables (`User`, `Session`, `Account`, `Verification`). The migration `20261006000000_users_and_auth` was written by hand (no database was available to run `prisma migrate dev`); if `pnpm db:migrate` reports drift against `schema.prisma`, regenerate it.
+- **Phases 0 (Foundation), 1 (Users and roles) and 2 (Question bank) are implemented.** Next up: Phase 3 (execution core: queue, worker, sandbox). Follow the delivery order in `PROJECT_SCOPE.md`; do not skip ahead.
+- Not built yet: worker, queue, sandbox, engine, games, viewer, judge, quizzes. Their directories do not exist yet.
+- Prisma schema has the Better Auth tables (`User`, `Session`, `Account`, `Verification`) and the question bank (`Question`, `TestCase`, enums `Difficulty`, `ComparisonRule`). The migrations `20261006000000_users_and_auth` and `20261006100000_question_bank` were written by hand (no `prisma migrate dev` was available); both were applied to a real Postgres 16 with `psql` and exercised by the store tests, but if `pnpm db:migrate` reports drift against `schema.prisma`, regenerate them.
+- Question bank (Phase 2): admin-only API under `/questions` (CRUD, `POST /questions/preview`, `GET /questions/:id/student-view`, tests under `/questions/:id/tests`) and admin pages under `/admin/questions` (list, editor with live preview and test case editor, student preview), built with the shadcn conventions below. Quiz-side question settings (`QuizQuestion`, scoring penalty, minimum score) arrive in Phase 4.
 - Auth: Better Auth in the API (username plugin + admin plugin). The first admin is created on API startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD` when no admin exists. The status route is admin-only (`/admin/status` in the web app).
 
 ## Layout
@@ -27,14 +28,17 @@ Also update the "Current state" section when a phase from `PROJECT_SCOPE.md` sec
 apps/
   api/        Hono API. src/app.ts exports createApp() and AppType; src/index.ts starts the server.
               auth.ts (Better Auth factory), bootstrap.ts (first admin), middleware/ (request id,
-              auth guards, rate limit), routes/ (status, me, users, client-logs)
+              auth guards, rate limit), routes/ (status, me, users, client-logs, questions),
+              questions/ (mdx.ts compiler + allowlist check, store.ts interface + in-memory store,
+              prisma-store.ts)
   web/        Next.js App Router UI (Tailwind 4, shadcn/ui, TanStack Query). UI only. Route group (app)
               holds every signed-in page (shell, guards); /login is public. components/ui = shadcn
               primitives, components/ = app components, lib/direction.ts = text direction
 packages/
   db/         Prisma 7 schema and migrations, prisma.config.ts, client factory (createPrismaClient, pingDatabase)
   logger/     createLogger() (Pino + Seq stream, CLEF over HTTP)
-  shared/     Zod schemas and constants shared by api and web (status, users and roles, client log limits, REQUEST_ID_HEADER)
+  shared/     Zod schemas and constants shared by api and web (status, users and roles, client log limits, REQUEST_ID_HEADER,
+              questions and test cases, the MDX allowlist)
 compose.yaml / compose.dev.yaml / compose.prod.yaml, Caddyfile, .env.example
 ```
 
@@ -42,7 +46,7 @@ Workspace packages are consumed as TypeScript source (`exports` points at `src/i
 
 ## Stack and versions
 
-pnpm 10 workspaces, Turborepo, Node 22, TypeScript 6.x (pinned below 7 because typescript-eslint does not support 7 yet; revisit when it does), ESLint 10 flat config, Prettier, Vitest, Hono + `hc<AppType>` + `@hono/zod-validator`, Better Auth 1.7, Zod 4, Next.js 16, React 19, Tailwind 4, shadcn/ui (Radix UI, lucide-react, Sonner, next-themes), TanStack Query, Pino 10, PostgreSQL 17, Seq.
+pnpm 10 workspaces, Turborepo, Node 22, TypeScript 6.x (pinned below 7 because typescript-eslint does not support 7 yet; revisit when it does), ESLint 10 flat config, Prettier, Vitest, Hono + `hc<AppType>` + `@hono/zod-validator`, Better Auth 1.7, Zod 4, Next.js 16, React 19, Tailwind 4, shadcn/ui (Radix UI, lucide-react, Sonner, next-themes), TanStack Query, Pino 10, PostgreSQL 17, Seq, MDX (`@mdx-js/mdx` + `remark-gfm`, API only; the MDX pipeline from section 2).
 
 ## Commands
 
@@ -52,6 +56,7 @@ pnpm db:generate             # prisma generate (required before typecheck/build/
 pnpm dev | build | lint | typecheck | test
 pnpm format | format:check
 pnpm db:migrate              # prisma migrate dev
+TEST_DATABASE_URL=postgresql://... pnpm --filter @bot-arena/api test   # also runs the Prisma store tests (skipped otherwise)
 pnpm release [--dry-run|--push|--allow-dirty]   # version, CHANGELOG.md, commit + tag (scripts/release.ts)
 pnpm typecheck:scripts       # typecheck scripts/ (not covered by turbo)
 pnpm changelog               # manual git-cliff preview into CHANGELOG.md (never edit by hand)
@@ -69,6 +74,7 @@ Turbo tasks `build`, `typecheck`, `lint`, `test` and `dev` depend on `generate`,
 - **API:** routes are chained on the Hono app so types flow into `AppType`. Request validation uses Zod validators. Every request gets an `x-request-id` (reused if well-formed) and a bound `logger` in context (`c.get('logger')`). Dependencies such as the DB ping are injected into `createApp()` so routes are testable without a database.
 - **Web typecheck:** `apps/web/next-env.d.ts` is generated and git-ignored; the web `typecheck` script runs `next typegen` first so a fresh clone or CI has the Next types.
 - **Auth and access control:** every route is guarded in one place, `createApp()` in `apps/api/src/app.ts` (`requireAuth`, then `requireRole('admin')` for admin routes). Routes read the user with `c.get('user')`; after `requireAuth` the context logger carries `userId`. Roles are `admin` and `player` (`ROLES` in `@bot-arena/shared`). Accounts have no real email: Better Auth gets a synthetic `<username>@users.invalid`. Deactivation is a Better Auth ban. Tests use Better Auth's memory adapter through `src/test-utils.ts` (`makeTestApp`), so no database is needed.
+- **Questions and MDX:** `createApp()` takes a `QuestionStore` (`apps/api/src/questions/store.ts`); production passes `createPrismaQuestionStore(prisma)`, tests use `createMemoryQuestionStore()` (exposed by `makeTestApp` as `ctx.questions`). Keep both stores behaviour-compatible (`prisma-store.test.ts` runs the store against Postgres when `TEST_DATABASE_URL` is set). Statements are MDX compiled **at save time** by `compileStatement` (`questions/mdx.ts`, `function-body` output) and stored next to the source in `Question.statementCompiled`; a remark plugin rejects imports/exports, `{ }` expressions, unknown components or attributes and unsafe URL schemes. The allowlist lives in `@bot-arena/shared` (`MDX_COMPONENTS`, `MDX_HTML_TAGS`, `MDX_URL_PROTOCOLS`); `apps/web/src/components/mdx-components.tsx` maps the same names to React components (add a component in both places; it uses tokens and the shadcn `Table`). The web app evaluates the compiled code with the React JSX runtime in `mdx-content.tsx` (it does not bundle the MDX compiler). Hidden tests appear only in admin responses: the student view (`StudentQuestionView`) is built field by field from sample tests, and a test asserts it never contains hidden data. Test input and expected output are stored with `\n` line endings. Hono RPC responses include the validator's error shape, so in web code narrow with an inline `if (!res.ok) throw ...` before `res.json()` (a helper function does not narrow).
 - **Client logs:** the browser logs only through `POST /client-logs` (authenticated, strict Zod schema from `@bot-arena/shared`, 64 KB body cap, 30 requests per user per minute, identity added server-side). The web side is `apps/web/src/lib/client-logger.ts` (window errors, unhandled rejections) plus the error boundaries `app/error.tsx` and `app/global-error.tsx`.
 - **Web:** business logic stays in the API. The server checks the session with `getSessionUser()` (`apps/web/src/lib/session.ts`, forwards the cookie to `/me`); sign-in, sign-out and password change use the Better Auth client in `lib/auth-client.ts`. Browser calls go through `createApiClient()` in `apps/web/src/lib/api.ts`; server code uses `API_URL`, the browser uses `NEXT_PUBLIC_API_URL` (`/api` in production). Server-side logging uses `apps/web/src/lib/logger.ts` (`server-only`).
 - **Env:** one root `.env` (copy of `.env.example`). The API loads it via `tsx --env-file-if-exists`; Prisma loads it in `prisma.config.ts` with dotenv; Next.js loads it in `next.config.ts` with `process.loadEnvFile` (Next itself only reads `apps/web/.env`). Auth variables: `BETTER_AUTH_SECRET` (32+ chars), `BETTER_AUTH_URL` (API origin, no path), `ADMIN_USERNAME`, `ADMIN_PASSWORD`. When adding a variable, update `.env.example`, `apps/api/src/env.ts` (Zod) and the Compose files if needed.
@@ -80,8 +86,8 @@ Turbo tasks `build`, `typecheck`, `lint`, `test` and `dev` depend on `generate`,
 All web UI is built with **shadcn/ui** on Tailwind 4. Agents must follow these rules for any change under `apps/web`:
 
 - **Use shadcn components first.** Before writing markup for a button, input, dialog, menu, table, select, toast, card, badge, alert, tabs, tooltip and so on, check `apps/web/src/components/ui/`. If the component is missing, add it the shadcn way (`pnpm dlx shadcn@latest add <name>` from `apps/web`; `components.json` is configured). If the CLI cannot reach the network, write the file by hand in the same shape: Radix primitive from `radix-ui`, `data-slot` attributes, `cn()` from `@/lib/utils`, `cva` for variants. Do not build custom modals, dropdowns or form controls, and do not use raw `<button>`, `<input>`, `<select>` or `<table>` for app UI.
-- **Do not fork the primitives for one screen.** App-specific compositions live in `src/components/` (for example `ConfirmDialog`, `TextField`, `SelectField`, `FormError`, `PageHeader`). Change `components/ui/*` only for changes that every screen should get.
-- **Tokens, not colors.** Use semantic tokens (`bg-background`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-destructive`, `bg-signal`, ...), defined in `src/app/globals.css` and mapped through `@theme inline`. Never use raw palette classes (`bg-neutral-100`, `text-red-600`) or `dark:` color overrides; dark mode is the `.dark` class (next-themes) and tokens flip by themselves. Change the look in `globals.css`.
+- **Do not fork the primitives for one screen.** App-specific compositions live in `src/components/` (for example `ConfirmDialog`, `TextField`, `SelectField`, `TextareaField`, `CheckboxField`, `FormError`, `PageHeader`). Change `components/ui/*` only for changes that every screen should get.
+- **Tokens, not colours.** Use semantic tokens (`bg-background`, `text-muted-foreground`, `border-border`, `bg-primary`, `text-destructive`, `bg-signal`, ...), defined in `src/app/globals.css` and mapped through `@theme inline`. Never use raw palette classes (`bg-neutral-100`, `text-red-600`) or `dark:` colour overrides; dark mode is the `.dark` class (next-themes) and tokens flip by themselves. Change the look in `globals.css`.
 - **RTL-ready by default (Persian is planned).** Use logical classes only: `ms-*`/`me-*`, `ps-*`/`pe-*`, `start-*`/`end-*`, `text-start`/`text-end`, `border-s`/`border-e`, `rounded-s`/`rounded-e`. Never `ml-`, `mr-`, `pl-`, `pr-`, `left-`, `right-`, `text-left`, `text-right`, `border-l`, `border-r`, `rounded-l`, `rounded-r`; ESLint (`no-restricted-syntax` in `eslint.config.mjs`) fails on them. Directional icons (chevrons, arrows) get `rtl:-scale-x-100`. Direction comes from one place, `lib/direction.ts`, and is applied as `dir` on `<html>` plus the Radix `Direction.Provider` in `app/providers.tsx`. Do not hardcode `left`/`right` in inline styles or SVG either. UI text is still hard-coded English; adding Persian also needs an i18n layer (not decided yet) and a locale switch in `app/layout.tsx`.
 - **Typography:** Archivo (variable, width axis) for Latin and Vazirmatn for Persian, both self-hosted through `@fontsource-variable/*` (no network at build time). Headings are wider and bolder through `font-stretch`; keep letter spacing at 0 for Persian.
 - **UX rules (apply to every screen):**
@@ -89,7 +95,7 @@ All web UI is built with **shadcn/ui** on Tailwind 4. Agents must follow these r
   - Every action gives feedback: a Sonner toast for success (same verb as the button: "Create user" then "User created"), an inline `FormError` in the form for failures. Buttons that run a request use `loading` and keep their label.
   - Loading states are skeletons, not bare "Loading…". Load errors show `FormError` plus a "Try again" button. Empty states say what to do next.
   - Do not offer actions the API will refuse (for example deactivating yourself).
-  - Forms use `TextField` / `SelectField` (label, hint and error are wired for screen readers); keep native validation attributes. Status is never color alone (badge text or icon too).
+  - Forms use `TextField` / `SelectField` (label, hint and error are wired for screen readers); keep native validation attributes. Status is never colour alone (badge text or icon too).
   - Copy: sentence case, plain verbs, no apologies in errors, say what happened and what to do.
 - **Quality floor:** visible keyboard focus, reduced motion respected (global rule in `globals.css`), works down to 360 px wide, no horizontal page scroll (wrap wide tables in the `Table` component, and use `grid-cols-1` on page grids so wide children cannot stretch the column).
 - Visual direction for new screens (tournament field: chalk-white paper, pitch green, whistle-yellow signal for "you are here") is in `globals.css` and `components/bracket-art.tsx`; keep new screens consistent with it. Use the `frontend-design` skill when designing a new screen.

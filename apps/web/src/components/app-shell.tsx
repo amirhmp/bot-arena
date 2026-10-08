@@ -8,6 +8,7 @@ import { UserMenu } from './user-menu'
 
 const NAV: (NavItem & { adminOnly?: boolean })[] = [
   { href: '/', label: 'Home' },
+  { href: '/admin/questions', label: 'Questions', adminOnly: true },
   { href: '/admin/users', label: 'Users', adminOnly: true },
   { href: '/admin/status', label: 'Status', adminOnly: true },
   { href: '/changelog', label: 'Changelog' },
@@ -22,7 +23,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
       <ClientLogger />
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:inset-s-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
+        className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
       >
         Skip to content
       </a>

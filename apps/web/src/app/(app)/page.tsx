@@ -8,6 +8,11 @@ export const metadata: Metadata = { title: 'Home' }
 
 const ADMIN_LINKS = [
   {
+    href: '/admin/questions',
+    title: 'Questions',
+    text: 'Write questions with sample and hidden tests.',
+  },
+  {
     href: '/admin/users',
     title: 'Users',
     text: 'Create accounts, reset passwords and assign roles.',

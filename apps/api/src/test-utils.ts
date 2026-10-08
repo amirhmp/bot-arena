@@ -4,6 +4,7 @@ import { Writable } from 'node:stream'
 import { createApp, type AppOptions } from './app'
 import { createAuth } from './auth'
 import { ensureInitialAdmin } from './bootstrap'
+import { createMemoryQuestionStore } from './questions/store'
 
 export const ADMIN = { username: 'admin', password: 'admin-password-1' }
 const ORIGIN = 'http://localhost:3000'
@@ -32,9 +33,11 @@ export async function makeTestApp(
     logger,
   })
   await ensureInitialAdmin(auth, ADMIN, logger)
+  const questions = createMemoryQuestionStore()
   const app = createApp({
     logger,
     auth,
+    questions,
     status: overrides.status ?? { pingDatabase: async () => {} },
     clientLogs: overrides.clientLogs,
   })
@@ -72,6 +75,7 @@ export async function makeTestApp(
   return {
     app,
     auth,
+    questions,
     lines,
     signIn,
     request,

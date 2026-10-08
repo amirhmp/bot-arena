@@ -1,7 +1,7 @@
 // Prisma 7: the connection URL lives in prisma.config.ts, not here.
 // Models are added phase by phase. Phase 1 adds the Better Auth tables (User, Session, Account,
 // Verification). Field names follow Better Auth's schema plus the username and admin plugins;
-// keep them in sync when upgrading better-auth.
+// keep them in sync when upgrading better-auth. Phase 2 adds the question bank (Question, TestCase).
 
 generator client {
   provider = "prisma-client"
@@ -31,8 +31,9 @@ model User {
   banReason  String?
   banExpires DateTime?
 
-  sessions Session[]
-  accounts Account[]
+  sessions  Session[]
+  accounts  Account[]
+  questions Question[]
 }
 
 model Session {
@@ -78,4 +79,56 @@ model Verification {
   updatedAt  DateTime @default(now()) @updatedAt
 
   @@index([identifier])
+}
+
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
+/// How output is compared with a test's expected output (decision 29).
+enum ComparisonRule {
+  trimmed
+  strict
+  token
+}
+
+model Question {
+  id                String         @id @default(cuid())
+  title             String
+  /// MDX source, as the admin wrote it. Never sent to students.
+  statementMdx      String
+  /// The MDX compiled on the server at save time (decision 32). This is what students receive.
+  statementCompiled String
+  tags              String[]       @default([])
+  difficulty        Difficulty     @default(medium)
+  timeLimitMs       Int            @default(2000)
+  memoryLimitMb     Int            @default(256)
+  maxScore          Int            @default(10)
+  comparison        ComparisonRule @default(trimmed)
+  createdById       String?
+  createdBy         User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  tests TestCase[]
+
+  @@index([updatedAt])
+}
+
+model TestCase {
+  id             String   @id @default(cuid())
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  /// Display and run order within the question.
+  position       Int      @default(0)
+  /// Visible tests are samples students can see; hidden tests never leave the server.
+  visible        Boolean  @default(false)
+  stdin          String   @default("")
+  expectedOutput String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([questionId, position])
 }

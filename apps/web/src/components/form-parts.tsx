@@ -4,6 +4,7 @@ import { CircleAlert, Eye, EyeOff } from 'lucide-react'
 import { useId, useState, type ComponentProps, type ReactNode } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 
 /** A label, an input and an optional hint, wired together for screen readers. */
 export function TextField({
@@ -41,7 +43,7 @@ export function TextField({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute inset-e-0.5 top-1/2 size-8 -translate-y-1/2 text-muted-foreground"
+            className="absolute end-0.5 top-1/2 size-8 -translate-y-1/2 text-muted-foreground"
             aria-label={revealed ? 'Hide password' : 'Show password'}
             aria-pressed={revealed}
             onClick={() => setRevealed((value) => !value)}
@@ -59,6 +61,64 @@ export function TextField({
   )
 }
 
+/** A label, a textarea and an optional hint, wired together for screen readers. */
+export function TextareaField({
+  label,
+  hint,
+  ...props
+}: { label: string; hint?: string } & ComponentProps<'textarea'>) {
+  const id = useId()
+  const hintId = hint ? `${id}-hint` : undefined
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea id={id} aria-describedby={hintId} {...props} />
+      {hint ? (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** A checkbox with its label (and optional hint) as one click target. */
+export function CheckboxField({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  disabled,
+}: {
+  label: string
+  hint?: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
+  const id = useId()
+  const hintId = hint ? `${id}-hint` : undefined
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={id}
+          checked={checked}
+          disabled={disabled}
+          aria-describedby={hintId}
+          onCheckedChange={(value) => onCheckedChange(value === true)}
+        />
+        <Label htmlFor={id}>{label}</Label>
+      </div>
+      {hint ? (
+        <p id={hintId} className="ps-6 text-xs text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 /** A labelled select that submits with the form (Radix renders a hidden native select). */
 export function SelectField({
   label,
@@ -67,6 +127,7 @@ export function SelectField({
   defaultValue,
   disabled,
   options,
+  onValueChange,
 }: {
   label: string
   hint?: string
@@ -74,13 +135,19 @@ export function SelectField({
   defaultValue: string
   disabled?: boolean
   options: readonly { value: string; label: string }[]
+  onValueChange?: (value: string) => void
 }) {
   const id = useId()
   const hintId = hint ? `${id}-hint` : undefined
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <Select name={name} defaultValue={defaultValue} disabled={disabled}>
+      <Select
+        name={name}
+        defaultValue={defaultValue}
+        disabled={disabled}
+        onValueChange={onValueChange}
+      >
         <SelectTrigger id={id} aria-describedby={hintId}>
           <SelectValue />
         </SelectTrigger>
